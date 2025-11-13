@@ -78,26 +78,20 @@ spec:
                     type: object
                 type: object
               roleTemplates:
-                description: |-
-                  RoleTemplates defines reusable Pod templates that can be referenced by roles.
-                  This reduces YAML duplication when multiple roles share common configuration.
+                description: RoleTemplates defines reusable Pod templates that can
+                  be referenced by roles.
                 items:
-                  description: |-
-                    RoleTemplate defines a reusable Pod template that can be referenced by roles.
-                    Templates allow sharing common configuration across multiple roles.
+                  description: RoleTemplate defines a reusable Pod template that can
+                    be referenced by roles.
                   properties:
                     name:
-                      description: |-
-                        Name is the unique identifier for the template within the RoleBasedGroup.
-                        Must be a valid DNS label (RFC 1123).
+                      description: Name is the unique identifier for this template.
                       maxLength: 63
                       minLength: 1
                       pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                       type: string
                     template:
-                      description: |-
-                        Template defines the Pod template specification.
-                        This template will be merged with role-specific patches when a role references it.
+                      description: Template defines the Pod template specification.
                       properties:
                         metadata:
                           description: |-
@@ -8937,9 +8931,7 @@ spec:
                     template:
                       description: |-
                         Pod template specification.
-                        Required in traditional mode (when templateRef is not set).
-                        Must be empty when templateRef is set.
-                        The mutual exclusivity is enforced by Controller validation.
+                        Required when templateRef is not set.
                       properties:
                         metadata:
                           description: |-
@@ -16246,19 +16238,18 @@ spec:
                       type: object
                     templatePatch:
                       description: |-
-                        TemplatePatch specifies modifications to apply to the referenced RoleTemplate.
-                        Required when templateRef is set. Use empty object ({}) if no modifications are needed.
+                        TemplatePatch specifies modifications to apply to the referenced template.
+                        Uses strategic merge patch semantics.
+                        Required when templateRef is set, use empty object ({}) for no modifications.
                       x-kubernetes-preserve-unknown-fields: true
                     templateRef:
                       description: |-
-                        TemplateRef references a RoleTemplate defined in spec.roleTemplates.
-                        When specified, the role's Pod template is derived from the referenced template
-                        merged with templatePatch.
+                        TemplateRef references a RoleTemplate from spec.roleTemplates.
+                        When set, the Pod template is derived by merging the referenced template with templatePatch.
+                        Cannot be used together with template field.
                       properties:
                         name:
-                          description: |-
-                            Name is the name of the RoleTemplate to reference.
-                            Must match an existing template in spec.roleTemplates.
+                          description: Name of the RoleTemplate to reference.
                           maxLength: 63
                           minLength: 1
                           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
