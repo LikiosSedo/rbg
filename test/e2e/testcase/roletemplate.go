@@ -27,7 +27,7 @@ func RunRoleTemplateTestCases(f *framework.Framework) {
 						WithContainers([]corev1.Container{
 							{
 								Name:  "nginx",
-								Image: "nginx:1.19",
+								Image: "nginx:latest",
 								Resources: corev1.ResourceRequirements{
 									Requests: corev1.ResourceList{
 										corev1.ResourceCPU:    resource.MustParse("100m"),
@@ -56,8 +56,14 @@ func RunRoleTemplateTestCases(f *framework.Framework) {
 						"spec": map[string]interface{}{
 							"containers": []map[string]interface{}{
 								{
-									"name":  "nginx",
-									"image": "nginx:1.20",
+									"name": "nginx",
+									// Keep nginx:latest, verify patch by checking resources
+									"resources": map[string]interface{}{
+										"requests": map[string]interface{}{
+											"cpu":    "150m",
+											"memory": "256Mi",
+										},
+									},
 								},
 							},
 						},
@@ -97,7 +103,7 @@ func RunRoleTemplateTestCases(f *framework.Framework) {
 
 					gomega.Expect(sts1.Spec.Template.Spec.Containers).To(gomega.HaveLen(1))
 					container1 := sts1.Spec.Template.Spec.Containers[0]
-					gomega.Expect(container1.Image).To(gomega.Equal("nginx:1.19"))
+					gomega.Expect(container1.Image).To(gomega.Equal("nginx:latest"))
 					gomega.Expect(container1.Resources.Requests[corev1.ResourceCPU]).To(gomega.Equal(resource.MustParse("200m")))
 
 					// Verify role2 StatefulSet
@@ -110,8 +116,9 @@ func RunRoleTemplateTestCases(f *framework.Framework) {
 					}, 30*time.Second, 1*time.Second).Should(gomega.Succeed())
 
 					container2 := sts2.Spec.Template.Spec.Containers[0]
-					gomega.Expect(container2.Image).To(gomega.Equal("nginx:1.20"))
-					gomega.Expect(container2.Resources.Requests[corev1.ResourceCPU]).To(gomega.Equal(resource.MustParse("100m")))
+					gomega.Expect(container2.Image).To(gomega.Equal("nginx:latest"))
+					gomega.Expect(container2.Resources.Requests[corev1.ResourceCPU]).To(gomega.Equal(resource.MustParse("150m")))
+					gomega.Expect(container2.Resources.Requests[corev1.ResourceMemory]).To(gomega.Equal(resource.MustParse("256Mi")))
 
 					gomega.Expect(f.Client.Delete(f.Ctx, rbg)).Should(gomega.Succeed())
 					f.ExpectRbgDeleted(rbg)
