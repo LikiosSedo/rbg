@@ -65,6 +65,8 @@ func validateRoleTemplateFields(
 	hasTemplatePatch := role.TemplatePatch.Raw != nil && len(role.TemplatePatch.Raw) > 0
 
 	if hasTemplateRef {
+		// Priority mode: when templateRef is set, it takes precedence
+		// The template field is ignored if present (for Go zero-value compatibility)
 		if !validTemplateNames[role.TemplateRef.Name] {
 			return fmt.Errorf(
 				"spec.roles[%d].templateRef.name: template %q not found in spec.roleTemplates",
@@ -79,14 +81,12 @@ func validateRoleTemplateFields(
 			)
 		}
 
-		if hasTemplate {
-			return fmt.Errorf(
-				"spec.roles[%d].template: must be empty when templateRef is set (configuration should be in templatePatch)",
-				index,
-			)
-		}
+		// NOTE: We no longer validate mutual exclusivity with template field
+		// This allows Go's zero-value PodTemplateSpec{} to coexist with templateRef
+		// The controller will use templateRef and ignore template when both are present
 
 	} else {
+		// Traditional mode: template field is required
 		if hasTemplatePatch {
 			return fmt.Errorf(
 				"spec.roles[%d].templatePatch: only valid when templateRef is set",
