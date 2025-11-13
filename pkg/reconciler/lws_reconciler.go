@@ -2,7 +2,6 @@ package reconciler
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -15,7 +14,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/apimachinery/pkg/util/wait"
 	metaapplyv1 "k8s.io/client-go/applyconfigurations/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -181,9 +179,29 @@ func (r *LeaderWorkerSetReconciler) constructLWSApplyConfiguration(
 	revisionKey string,
 ) (*lwsapplyv1.LeaderWorkerSetApplyConfiguration, error) {
 	logger := log.FromContext(ctx)
+
+	// KEP-8: Resolve base template (handles both traditional mode and templateRef)
+	var baseTemplate corev1.PodTemplateSpec
+	if role.UsesRoleTemplate() {
+		// Template mode: find template and apply patch
+		roleTemplate, err := rbg.FindRoleTemplate(role.GetEffectiveTemplateName())
+		if err != nil {
+			return nil, fmt.Errorf("failed to find roleTemplate: %w", err)
+		}
+
+		merged, err := applyStrategicMergePatch(roleTemplate.Template, role.TemplatePatch)
+		if err != nil {
+			return nil, fmt.Errorf("failed to apply templatePatch: %w", err)
+		}
+		baseTemplate = merged
+	} else {
+		// Traditional mode: use role.Template directly
+		baseTemplate = role.Template
+	}
+
 	// leaderTemplate
 	podReconciler := NewPodReconciler(r.scheme, r.client)
-	leaderTemp, err := patchPodTemplate(role.Template, role.LeaderWorkerSet.PatchLeaderTemplate)
+	leaderTemp, err := applyStrategicMergePatch(baseTemplate, role.LeaderWorkerSet.PatchLeaderTemplate)
 	if err != nil {
 		logger.Error(err, "patch leader podTemplate failed", "rbg", keyOfRbg(rbg))
 		return nil, err
@@ -197,7 +215,7 @@ func (r *LeaderWorkerSetReconciler) constructLWSApplyConfiguration(
 	}
 
 	// workerTemplate
-	workerTemp, err := patchPodTemplate(role.Template, role.LeaderWorkerSet.PatchWorkerTemplate)
+	workerTemp, err := applyStrategicMergePatch(baseTemplate, role.LeaderWorkerSet.PatchWorkerTemplate)
 	if err != nil {
 		logger.Error(err, "patch worker podTemplate failed", "rbg", keyOfRbg(rbg))
 		return nil, err
@@ -444,6 +462,7 @@ func patchPodTemplate(template *corev1.PodTemplateSpec, patch runtime.RawExtensi
 	}
 	return newTemp, nil
 }
+
 
 func keyOfRbg(rbg *workloadsv1alpha1.RoleBasedGroup) string {
 	return fmt.Sprintf("%s/%s", rbg.Namespace, rbg.Name)

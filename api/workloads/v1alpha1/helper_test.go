@@ -4,7 +4,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 )
 
 func TestRoleBasedGroup_GenGroupUniqueKey(t *testing.T) {
@@ -34,6 +36,142 @@ func TestRoleBasedGroup_GetExclusiveKey(t *testing.T) {
 			got, found := rbg.GetExclusiveKey()
 			assert.Equal(t, tt.wantKey, got)
 			assert.Equal(t, tt.wantFound, found)
+		})
+	}
+}
+
+func TestRoleBasedGroup_FindRoleTemplate(t *testing.T) {
+	rbg := &RoleBasedGroup{
+		Spec: RoleBasedGroupSpec{
+			RoleTemplates: []RoleTemplate{
+				{
+					Name: "base",
+					Template: corev1.PodTemplateSpec{
+						Spec: corev1.PodSpec{
+							Containers: []corev1.Container{{Name: "app"}},
+						},
+					},
+				},
+				{
+					Name: "gpu",
+					Template: corev1.PodTemplateSpec{
+						Spec: corev1.PodSpec{
+							Containers: []corev1.Container{{Name: "app"}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name         string
+		templateName string
+		wantErr      bool
+		wantName     string
+	}{
+		{"find existing template", "base", false, "base"},
+		{"find another template", "gpu", false, "gpu"},
+		{"template not found", "nonexistent", true, ""},
+		{"empty name", "", true, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := rbg.FindRoleTemplate(tt.templateName)
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Nil(t, got)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, got)
+				assert.Equal(t, tt.wantName, got.Name)
+			}
+		})
+	}
+}
+
+func TestRoleSpec_UsesRoleTemplate(t *testing.T) {
+	tests := []struct {
+		name string
+		role *RoleSpec
+		want bool
+	}{
+		{
+			name: "uses template",
+			role: &RoleSpec{
+				TemplateRef: &TemplateRef{Name: "base"},
+			},
+			want: true,
+		},
+		{
+			name: "does not use template",
+			role: &RoleSpec{
+				Template: corev1.PodTemplateSpec{
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{{Name: "app"}},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "nil templateRef",
+			role: &RoleSpec{},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.role.UsesRoleTemplate()
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestRoleSpec_GetEffectiveTemplateName(t *testing.T) {
+	tests := []struct {
+		name string
+		role *RoleSpec
+		want string
+	}{
+		{
+			name: "has templateRef",
+			role: &RoleSpec{
+				Name:        "prefill",
+				Replicas:    ptr.To(int32(1)),
+				TemplateRef: &TemplateRef{Name: "base"},
+			},
+			want: "base",
+		},
+		{
+			name: "no templateRef",
+			role: &RoleSpec{
+				Name:     "prefill",
+				Replicas: ptr.To(int32(1)),
+				Template: corev1.PodTemplateSpec{
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{{Name: "app"}},
+					},
+				},
+			},
+			want: "",
+		},
+		{
+			name: "nil templateRef",
+			role: &RoleSpec{
+				Name:     "prefill",
+				Replicas: ptr.To(int32(1)),
+			},
+			want: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.role.GetEffectiveTemplateName()
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

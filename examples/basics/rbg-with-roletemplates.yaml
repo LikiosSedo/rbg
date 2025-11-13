@@ -1,0 +1,83 @@
+# Example: RoleBasedGroup with RoleTemplates
+apiVersion: workloads.x-k8s.io/v1alpha1
+kind: RoleBasedGroup
+metadata:
+  name: sglang-cluster
+spec:
+  # Define reusable templates
+  roleTemplates:
+    - name: sglang-base
+      template:
+        metadata:
+          labels:
+            app: sglang
+            version: v0.5.1
+        spec:
+          containers:
+            - name: sglang
+              image: lmsysorg/sglang:v0.5.1
+              resources:
+                limits:
+                  nvidia.com/gpu: "2"
+                requests:
+                  memory: "16Gi"
+                  cpu: "8"
+              volumeMounts:
+                - name: model-cache
+                  mountPath: /model-cache
+          volumes:
+            - name: model-cache
+              emptyDir: {}
+
+  # Use templates in roles with role-specific overrides
+  roles:
+    - name: prefill
+      replicas: 2
+      templateRef:
+        name: sglang-base
+      templatePatch:
+        spec:
+          containers:
+            - name: sglang
+              command:
+                - python3
+                - -m
+                - sglang.launch_server
+                - --model-path
+                - /model-cache/llama-3-8b
+                - --tp
+                - "2"
+                - --mem-fraction-static
+                - "0.85"
+              ports:
+                - containerPort: 30000
+                  name: http
+
+    - name: decode
+      replicas: 4
+      dependencies: ["prefill"]
+      templateRef:
+        name: sglang-base
+      templatePatch:
+        spec:
+          containers:
+            - name: sglang
+              command:
+                - python3
+                - -m
+                - sglang.launch_server
+                - --model-path
+                - /model-cache/llama-3-8b
+                - --tp
+                - "2"
+                - --mem-fraction-static
+                - "0.90"
+              ports:
+                - containerPort: 30001
+                  name: http
+              resources:
+                limits:
+                  nvidia.com/gpu: "2"
+                requests:
+                  memory: "12Gi"  # Different from base template
+                  cpu: "4"
