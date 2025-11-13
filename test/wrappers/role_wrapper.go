@@ -124,7 +124,6 @@ func (roleWrapper *RoleWrapper) WithTemplatePatch(patch runtime.RawExtension) *R
 }
 
 func BuildBasicRole(name string) *RoleWrapper {
-	template := BuildBasicPodTemplateSpec().Obj()
 	return &RoleWrapper{
 		workloadsv1alpha.RoleSpec{
 			Name:     name,
@@ -136,7 +135,7 @@ func BuildBasicRole(name string) *RoleWrapper {
 				APIVersion: "apps/v1",
 				Kind:       "StatefulSet",
 			},
-			Template: &template,
+			// Template is intentionally not set - use WithTemplate() or WithTemplateRef()
 		},
 	}
 }

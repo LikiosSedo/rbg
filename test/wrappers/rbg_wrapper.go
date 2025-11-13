@@ -108,7 +108,7 @@ func BuildBasicRoleBasedGroup(name, ns string) *RoleBasedGroupWrapper {
 			},
 			Spec: workloadsv1alpha.RoleBasedGroupSpec{
 				Roles: []workloadsv1alpha.RoleSpec{
-					BuildBasicRole("test-role").Obj(),
+					BuildBasicRole("test-role").WithTemplate(BuildBasicPodTemplateSpec().Obj()).Obj(),
 				},
 			},
 		},
