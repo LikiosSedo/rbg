@@ -131,7 +131,7 @@ func RunRoleTemplateTestCases(f *framework.Framework) {
 						WithContainers([]corev1.Container{
 							{
 								Name:  "app",
-								Image: "nginx:latest",
+								Image: "registry-cn-shanghai.siflow.cn/k8s/nginx:latest",
 							},
 						}).Obj()
 
@@ -160,7 +160,7 @@ func RunRoleTemplateTestCases(f *framework.Framework) {
 						}, sts)
 					}, 30*time.Second, 1*time.Second).Should(gomega.Succeed())
 
-					gomega.Expect(sts.Spec.Template.Spec.Containers[0].Image).To(gomega.Equal("nginx:latest"))
+					gomega.Expect(sts.Spec.Template.Spec.Containers[0].Image).To(gomega.Equal("registry-cn-shanghai.siflow.cn/k8s/nginx:latest"))
 
 					gomega.Expect(f.Client.Delete(f.Ctx, rbg)).Should(gomega.Succeed())
 					f.ExpectRbgDeleted(rbg)
@@ -173,7 +173,7 @@ func RunRoleTemplateTestCases(f *framework.Framework) {
 						WithContainers([]corev1.Container{
 							{
 								Name:  "app",
-								Image: "nginx:1.19",
+								Image: "registry-cn-shanghai.siflow.cn/k8s/nginx:latest",
 							},
 						}).Obj()
 
@@ -210,7 +210,7 @@ func RunRoleTemplateTestCases(f *framework.Framework) {
 						WithContainers([]corev1.Container{
 							{
 								Name:  "app",
-								Image: "nginx:1.20",
+								Image: "registry-cn-shanghai.siflow.cn/k8s/nginx:latest",
 							},
 						}).Obj()
 
@@ -247,7 +247,7 @@ func RunRoleTemplateTestCases(f *framework.Framework) {
 							return ""
 						}
 						return sts.Spec.Template.Spec.Containers[0].Image
-					}, 30*time.Second, 1*time.Second).Should(gomega.Equal("nginx:1.20"))
+					}, 30*time.Second, 1*time.Second).Should(gomega.Equal("registry-cn-shanghai.siflow.cn/k8s/nginx:latest"))
 
 					gomega.Expect(f.Client.Delete(f.Ctx, rbg)).Should(gomega.Succeed())
 					f.ExpectRbgDeleted(rbg)
@@ -260,7 +260,7 @@ func RunRoleTemplateTestCases(f *framework.Framework) {
 						WithContainers([]corev1.Container{
 							{
 								Name:  "app",
-								Image: "nginx:1.19",
+								Image: "registry-cn-shanghai.siflow.cn/k8s/nginx:latest",
 							},
 						}).Obj()
 
@@ -293,7 +293,7 @@ func RunRoleTemplateTestCases(f *framework.Framework) {
 						WithContainers([]corev1.Container{
 							{
 								Name:  "app",
-								Image: "nginx:templated",
+								Image: "registry-cn-shanghai.siflow.cn/k8s/nginx:latest",
 							},
 						}).Obj()
 
@@ -303,7 +303,7 @@ func RunRoleTemplateTestCases(f *framework.Framework) {
 						WithContainers([]corev1.Container{
 							{
 								Name:  "app",
-								Image: "nginx:traditional",
+								Image: "registry-cn-shanghai.siflow.cn/k8s/nginx:latest",
 							},
 						}).Obj()
 
@@ -334,7 +334,7 @@ func RunRoleTemplateTestCases(f *framework.Framework) {
 							Namespace: f.Namespace,
 						}, sts1)
 					}, 30*time.Second, 1*time.Second).Should(gomega.Succeed())
-					gomega.Expect(sts1.Spec.Template.Spec.Containers[0].Image).To(gomega.Equal("nginx:templated"))
+					gomega.Expect(sts1.Spec.Template.Spec.Containers[0].Image).To(gomega.Equal("registry-cn-shanghai.siflow.cn/k8s/nginx:latest"))
 
 					// Verify traditional role
 					sts2 := &appsv1.StatefulSet{}
@@ -344,7 +344,7 @@ func RunRoleTemplateTestCases(f *framework.Framework) {
 							Namespace: f.Namespace,
 						}, sts2)
 					}, 30*time.Second, 1*time.Second).Should(gomega.Succeed())
-					gomega.Expect(sts2.Spec.Template.Spec.Containers[0].Image).To(gomega.Equal("nginx:traditional"))
+					gomega.Expect(sts2.Spec.Template.Spec.Containers[0].Image).To(gomega.Equal("registry-cn-shanghai.siflow.cn/k8s/nginx:latest"))
 
 					gomega.Expect(f.Client.Delete(f.Ctx, rbg)).Should(gomega.Succeed())
 					f.ExpectRbgDeleted(rbg)
