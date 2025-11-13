@@ -115,9 +115,6 @@ func (roleWrapper *RoleWrapper) WithTemplateRef(name string) *RoleWrapper {
 	roleWrapper.TemplateRef = &workloadsv1alpha.TemplateRef{
 		Name: name,
 	}
-	// Clear template field to comply with KEP-8 mutual exclusivity rule:
-	// when templateRef is set, template must be empty
-	roleWrapper.Template = corev1.PodTemplateSpec{}
 	return roleWrapper
 }
 
@@ -138,7 +135,7 @@ func BuildBasicRole(name string) *RoleWrapper {
 				APIVersion: "apps/v1",
 				Kind:       "StatefulSet",
 			},
-			Template: BuildBasicPodTemplateSpec().Obj(),
+			// Template is intentionally not set - use WithTemplate() or WithTemplateRef()
 		},
 	}
 }
