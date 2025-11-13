@@ -224,7 +224,7 @@ type RoleSpec struct {
 	// Pod template specification.
 	// Required when templateRef is not set.
 	// +optional
-	Template corev1.PodTemplateSpec `json:"template"`
+	Template corev1.PodTemplateSpec `json:"template,omitempty"`
 
 	// LeaderWorkerSet template
 	// +optional
