@@ -2,7 +2,6 @@ package reconciler
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -18,7 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/apimachinery/pkg/util/wait"
 	metaapplyv1 "k8s.io/client-go/applyconfigurations/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -205,6 +203,8 @@ func (r *LeaderWorkerSetReconciler) constructLWSApplyConfiguration(
 	revisionKey string,
 ) (*lwsapplyv1.LeaderWorkerSetApplyConfiguration, error) {
 	logger := log.FromContext(ctx)
+
+	// v0.5.0: LeaderWorkerSet nil check（指针类型）
 	leaderWorkerSet := role.LeaderWorkerSet
 	if leaderWorkerSet == nil {
 		leaderWorkerSet = &workloadsv1alpha1.LeaderWorkerTemplate{
@@ -212,15 +212,44 @@ func (r *LeaderWorkerSetReconciler) constructLWSApplyConfiguration(
 		}
 	}
 
+	// KEP-8: Resolve base template (handles both traditional mode and templateRef)
+	// baseTemplate 使用值类型（与 applyStrategicMergePatch 返回类型一致）
+	var baseTemplate corev1.PodTemplateSpec
+	if role.UsesRoleTemplate() {
+		// RoleTemplate 模式
+		roleTemplate, err := rbg.FindRoleTemplate(role.GetEffectiveTemplateName())
+		if err != nil {
+			return nil, fmt.Errorf("failed to find roleTemplate: %w", err)
+		}
+		merged, err := applyStrategicMergePatch(roleTemplate.Template, role.TemplatePatch)
+		if err != nil {
+			return nil, fmt.Errorf("failed to apply templatePatch: %w", err)
+		}
+		baseTemplate = merged
+	} else if role.Template != nil {
+		// 传统模式：role.Template 是指针，需要解引用
+		baseTemplate = *role.Template
+	}
+
+	// 适配 v0.5.0 的指针类型：解引用 *runtime.RawExtension
+	var leaderPatch, workerPatch runtime.RawExtension
+	if leaderWorkerSet.PatchLeaderTemplate != nil {
+		leaderPatch = *leaderWorkerSet.PatchLeaderTemplate
+	}
+	if leaderWorkerSet.PatchWorkerTemplate != nil {
+		workerPatch = *leaderWorkerSet.PatchWorkerTemplate
+	}
+
 	// leaderTemplate
 	podReconciler := NewPodReconciler(r.scheme, r.client)
-	leaderTemp, err := patchPodTemplate(role.Template, leaderWorkerSet.PatchLeaderTemplate)
+	// KEP-8: 使用 applyStrategicMergePatch
+	leaderTemp, err := applyStrategicMergePatch(baseTemplate, leaderPatch)
 	if err != nil {
 		logger.Error(err, "patch leader podTemplate failed", "rbg", keyOfRbg(rbg))
 		return nil, err
 	}
 	leaderTemplateApplyCfg, err := podReconciler.ConstructPodTemplateSpecApplyConfiguration(
-		ctx, rbg, role, rbg.GetCommonLabelsFromRole(role), *leaderTemp,
+		ctx, rbg, role, rbg.GetCommonLabelsFromRole(role), leaderTemp,
 	)
 	if err != nil {
 		logger.Error(err, "patch Construct PodTemplateSpecApplyConfiguration failed", "rbg", keyOfRbg(rbg))
@@ -228,7 +257,7 @@ func (r *LeaderWorkerSetReconciler) constructLWSApplyConfiguration(
 	}
 
 	// workerTemplate
-	workerTemp, err := patchPodTemplate(role.Template, leaderWorkerSet.PatchWorkerTemplate)
+	workerTemp, err := applyStrategicMergePatch(baseTemplate, workerPatch)
 	if err != nil {
 		logger.Error(err, "patch worker podTemplate failed", "rbg", keyOfRbg(rbg))
 		return nil, err
@@ -237,7 +266,7 @@ func (r *LeaderWorkerSetReconciler) constructLWSApplyConfiguration(
 	// workerTemplate do not need to inject sidecar
 	workerPodReconciler.SetInjectors([]string{"config", "common_env"})
 	workerTemplateApplyCfg, err := workerPodReconciler.ConstructPodTemplateSpecApplyConfiguration(
-		ctx, rbg, role, rbg.GetCommonLabelsFromRole(role), *workerTemp,
+		ctx, rbg, role, rbg.GetCommonLabelsFromRole(role), workerTemp,
 	)
 	if err != nil {
 		logger.Error(err, "patch Construct PodTemplateSpecApplyConfiguration failed", "rbg", keyOfRbg(rbg))
@@ -487,6 +516,7 @@ func patchPodTemplate(template *corev1.PodTemplateSpec, patch *runtime.RawExtens
 	}
 	return newTemp, nil
 }
+
 
 func keyOfRbg(rbg *workloadsv1alpha1.RoleBasedGroup) string {
 	return fmt.Sprintf("%s/%s", rbg.Namespace, rbg.Name)
