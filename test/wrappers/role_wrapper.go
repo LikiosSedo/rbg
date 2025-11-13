@@ -126,12 +126,14 @@ func (roleWrapper *RoleWrapper) WithTemplatePatch(patch runtime.RawExtension) *R
 func BuildBasicRole(name string) *RoleWrapper {
 	// Provide minimal placeholder template to satisfy CRD validation
 	// When templateRef is set, this will be ignored (priority mode)
+	// Use busybox instead of scratch to ensure a valid, runnable container
 	placeholderTemplate := corev1.PodTemplateSpec{
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{
 				{
-					Name:  "placeholder",
-					Image: "scratch", // Empty image, signals this is unused
+					Name:    "placeholder",
+					Image:   "busybox:latest",
+					Command: []string{"sleep", "infinity"},
 				},
 			},
 		},
