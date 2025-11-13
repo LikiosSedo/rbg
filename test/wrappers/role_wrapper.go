@@ -124,6 +124,19 @@ func (roleWrapper *RoleWrapper) WithTemplatePatch(patch runtime.RawExtension) *R
 }
 
 func BuildBasicRole(name string) *RoleWrapper {
+	// Provide minimal placeholder template to satisfy CRD validation
+	// When templateRef is set, this will be ignored (priority mode)
+	placeholderTemplate := corev1.PodTemplateSpec{
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name:  "placeholder",
+					Image: "scratch", // Empty image, signals this is unused
+				},
+			},
+		},
+	}
+
 	return &RoleWrapper{
 		workloadsv1alpha.RoleSpec{
 			Name:     name,
@@ -135,7 +148,7 @@ func BuildBasicRole(name string) *RoleWrapper {
 				APIVersion: "apps/v1",
 				Kind:       "StatefulSet",
 			},
-			// Template is intentionally not set - use WithTemplate() or WithTemplateRef()
+			Template: placeholderTemplate,
 		},
 	}
 }
