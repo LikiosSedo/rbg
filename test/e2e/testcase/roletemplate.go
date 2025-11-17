@@ -211,6 +211,9 @@ func RunRoleTemplateTestCases(f *framework.Framework) {
 							{
 								Name:  "app",
 								Image: "registry-cn-shanghai.siflow.cn/k8s/nginx:latest",
+								Env: []corev1.EnvVar{
+									{Name: "VERSION", Value: "v2"},
+								},
 							},
 						}).Obj()
 
