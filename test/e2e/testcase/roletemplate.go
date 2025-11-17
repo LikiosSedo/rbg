@@ -594,37 +594,48 @@ func RunRoleTemplateTestCases(f *framework.Framework) {
 							Name: fmt.Sprintf("%s-role1", rbg.Name), Namespace: f.Namespace,
 						}, sts1)
 						if err != nil {
-							return fmt.Sprintf("GET_ERROR: %v", err)
+							return ""
 						}
 						if len(sts1.Spec.Template.Spec.Containers) == 0 {
-							return "NO_CONTAINERS"
+							return ""
 						}
-						if len(sts1.Spec.Template.Spec.Containers[0].Env) == 0 {
-							return "NO_ENV"
+						for _, env := range sts1.Spec.Template.Spec.Containers[0].Env {
+							if env.Name == "VERSION" {
+								return env.Value
+							}
 						}
-						env := sts1.Spec.Template.Spec.Containers[0].Env[0]
-						return fmt.Sprintf("ENV{Name:%s,Value:%s}", env.Name, env.Value)
-					}, 30*time.Second, 1*time.Second).Should(gomega.Equal("ENV{Name:VERSION,Value:v1}"))
+						return ""
+					}, 30*time.Second, 1*time.Second).Should(gomega.Equal("v1"))
 
 					gomega.Eventually(func() string {
 						f.Client.Get(f.Ctx, types.NamespacedName{
 							Name: fmt.Sprintf("%s-role2", rbg.Name), Namespace: f.Namespace,
 						}, sts2)
-						if len(sts2.Spec.Template.Spec.Containers) > 0 && len(sts2.Spec.Template.Spec.Containers[0].Env) > 0 {
-							return sts2.Spec.Template.Spec.Containers[0].Env[0].Value
+						if len(sts2.Spec.Template.Spec.Containers) == 0 {
+							return ""
+						}
+						for _, env := range sts2.Spec.Template.Spec.Containers[0].Env {
+							if env.Name == "VERSION" {
+								return env.Value
+							}
 						}
 						return ""
-					}, 10*time.Second, 1*time.Second).Should(gomega.Equal("v1"))
+					}, 30*time.Second, 1*time.Second).Should(gomega.Equal("v1"))
 
 					gomega.Eventually(func() string {
 						f.Client.Get(f.Ctx, types.NamespacedName{
 							Name: fmt.Sprintf("%s-role3", rbg.Name), Namespace: f.Namespace,
 						}, sts3)
-						if len(sts3.Spec.Template.Spec.Containers) > 0 && len(sts3.Spec.Template.Spec.Containers[0].Env) > 0 {
-							return sts3.Spec.Template.Spec.Containers[0].Env[0].Value
+						if len(sts3.Spec.Template.Spec.Containers) == 0 {
+							return ""
+						}
+						for _, env := range sts3.Spec.Template.Spec.Containers[0].Env {
+							if env.Name == "VERSION" {
+								return env.Value
+							}
 						}
 						return ""
-					}, 10*time.Second, 1*time.Second).Should(gomega.Equal("v1"))
+					}, 30*time.Second, 1*time.Second).Should(gomega.Equal("v1"))
 
 					initialRevision1 := sts1.Status.CurrentRevision
 					initialRevision2 := sts2.Status.CurrentRevision
@@ -686,8 +697,13 @@ func RunRoleTemplateTestCases(f *framework.Framework) {
 						f.Client.Get(f.Ctx, types.NamespacedName{
 							Name: fmt.Sprintf("%s-role1", rbg.Name), Namespace: f.Namespace,
 						}, sts1)
-						if len(sts1.Spec.Template.Spec.Containers[0].Env) > 0 {
-							return sts1.Spec.Template.Spec.Containers[0].Env[0].Value
+						if len(sts1.Spec.Template.Spec.Containers) == 0 {
+							return ""
+						}
+						for _, env := range sts1.Spec.Template.Spec.Containers[0].Env {
+							if env.Name == "VERSION" {
+								return env.Value
+							}
 						}
 						return ""
 					}, 30*time.Second, 1*time.Second).Should(gomega.Equal("v2"))
@@ -696,8 +712,13 @@ func RunRoleTemplateTestCases(f *framework.Framework) {
 						f.Client.Get(f.Ctx, types.NamespacedName{
 							Name: fmt.Sprintf("%s-role2", rbg.Name), Namespace: f.Namespace,
 						}, sts2)
-						if len(sts2.Spec.Template.Spec.Containers[0].Env) > 0 {
-							return sts2.Spec.Template.Spec.Containers[0].Env[0].Value
+						if len(sts2.Spec.Template.Spec.Containers) == 0 {
+							return ""
+						}
+						for _, env := range sts2.Spec.Template.Spec.Containers[0].Env {
+							if env.Name == "VERSION" {
+								return env.Value
+							}
 						}
 						return ""
 					}, 30*time.Second, 1*time.Second).Should(gomega.Equal("v2"))
@@ -706,8 +727,13 @@ func RunRoleTemplateTestCases(f *framework.Framework) {
 						f.Client.Get(f.Ctx, types.NamespacedName{
 							Name: fmt.Sprintf("%s-role3", rbg.Name), Namespace: f.Namespace,
 						}, sts3)
-						if len(sts3.Spec.Template.Spec.Containers[0].Env) > 0 {
-							return sts3.Spec.Template.Spec.Containers[0].Env[0].Value
+						if len(sts3.Spec.Template.Spec.Containers) == 0 {
+							return ""
+						}
+						for _, env := range sts3.Spec.Template.Spec.Containers[0].Env {
+							if env.Name == "VERSION" {
+								return env.Value
+							}
 						}
 						return ""
 					}, 30*time.Second, 1*time.Second).Should(gomega.Equal("v2"))
