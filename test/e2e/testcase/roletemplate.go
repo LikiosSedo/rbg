@@ -602,8 +602,9 @@ func RunRoleTemplateTestCases(f *framework.Framework) {
 						if len(sts1.Spec.Template.Spec.Containers[0].Env) == 0 {
 							return "NO_ENV"
 						}
-						return sts1.Spec.Template.Spec.Containers[0].Env[0].Value
-					}, 30*time.Second, 1*time.Second).Should(gomega.Equal("v1"))
+						env := sts1.Spec.Template.Spec.Containers[0].Env[0]
+						return fmt.Sprintf("ENV{Name:%s,Value:%s}", env.Name, env.Value)
+					}, 30*time.Second, 1*time.Second).Should(gomega.Equal("ENV{Name:VERSION,Value:v1}"))
 
 					gomega.Eventually(func() string {
 						f.Client.Get(f.Ctx, types.NamespacedName{
