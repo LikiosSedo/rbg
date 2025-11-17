@@ -107,7 +107,7 @@ func TestRoleSpec_UsesRoleTemplate(t *testing.T) {
 		{
 			name: "does not use template",
 			role: &RoleSpec{
-				Template: corev1.PodTemplateSpec{
+				Template: &corev1.PodTemplateSpec{
 					Spec: corev1.PodSpec{
 						Containers: []corev1.Container{{Name: "app"}},
 					},
@@ -150,7 +150,7 @@ func TestRoleSpec_GetEffectiveTemplateName(t *testing.T) {
 			role: &RoleSpec{
 				Name:     "prefill",
 				Replicas: ptr.To(int32(1)),
-				Template: corev1.PodTemplateSpec{
+				Template: &corev1.PodTemplateSpec{
 					Spec: corev1.PodSpec{
 						Containers: []corev1.Container{{Name: "app"}},
 					},

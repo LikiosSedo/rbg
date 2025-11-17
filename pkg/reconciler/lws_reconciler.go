@@ -196,7 +196,9 @@ func (r *LeaderWorkerSetReconciler) constructLWSApplyConfiguration(
 		baseTemplate = merged
 	} else {
 		// Traditional mode: use role.Template directly
-		baseTemplate = role.Template
+		if role.Template != nil {
+			baseTemplate = *role.Template
+		}
 	}
 
 	// leaderTemplate

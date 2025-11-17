@@ -235,7 +235,7 @@ func TestValidateRoleTemplateReferences(t *testing.T) {
 							Name:        "prefill",
 							Replicas:    ptr.To(int32(1)),
 							TemplateRef: &TemplateRef{Name: "base"},
-							Template: corev1.PodTemplateSpec{ // Should not be set
+							Template: &corev1.PodTemplateSpec{ // Should not be set
 								Spec: corev1.PodSpec{
 									Containers: []corev1.Container{{Name: "app"}},
 								},
@@ -256,7 +256,7 @@ func TestValidateRoleTemplateReferences(t *testing.T) {
 						{
 							Name:     "prefill",
 							Replicas: ptr.To(int32(1)),
-							Template: corev1.PodTemplateSpec{
+							Template: &corev1.PodTemplateSpec{
 								Spec: corev1.PodSpec{
 									Containers: []corev1.Container{{Name: "app"}},
 								},
@@ -277,7 +277,7 @@ func TestValidateRoleTemplateReferences(t *testing.T) {
 						{
 							Name:     "prefill",
 							Replicas: ptr.To(int32(1)),
-							Template: corev1.PodTemplateSpec{
+							Template: &corev1.PodTemplateSpec{
 								Spec: corev1.PodSpec{
 									Containers: []corev1.Container{{Name: "app"}},
 								},

@@ -419,7 +419,7 @@ func TestGetPatchAndRestore(t *testing.T) {
 						APIVersion: "apps/v1",
 						Kind:       "StatefulSet",
 					},
-					Template: v1.PodTemplateSpec{
+					Template: &v1.PodTemplateSpec{
 						ObjectMeta: metav1.ObjectMeta{
 							Labels: map[string]string{
 								"app": "nginx",
@@ -698,7 +698,7 @@ func getRBG() *workloadsv1alpha1.RoleBasedGroup {
 						APIVersion: "apps/v1",
 						Kind:       "Deployment",
 					},
-					Template: v1.PodTemplateSpec{
+					Template: &v1.PodTemplateSpec{
 						ObjectMeta: metav1.ObjectMeta{
 							Labels: map[string]string{
 								"app": "router",
@@ -778,7 +778,7 @@ func getRBG() *workloadsv1alpha1.RoleBasedGroup {
 						APIVersion: "apps/v1",
 						Kind:       "StatefulSet",
 					},
-					Template: v1.PodTemplateSpec{
+					Template: &v1.PodTemplateSpec{
 						ObjectMeta: metav1.ObjectMeta{
 							Labels: map[string]string{
 								"app":  "decode",
@@ -820,7 +820,7 @@ func getRBG() *workloadsv1alpha1.RoleBasedGroup {
 						APIVersion: "apps/v1",
 						Kind:       "Deployment",
 					},
-					Template: v1.PodTemplateSpec{
+					Template: &v1.PodTemplateSpec{
 						ObjectMeta: metav1.ObjectMeta{
 							Labels: map[string]string{
 								"app":  "prefill",

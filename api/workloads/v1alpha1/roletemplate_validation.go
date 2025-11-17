@@ -106,8 +106,11 @@ func validateRoleTemplateFields(
 }
 
 // isEmptyPodTemplateSpec checks if PodTemplateSpec is empty.
-func isEmptyPodTemplateSpec(pts corev1.PodTemplateSpec) bool {
-	return reflect.DeepEqual(pts, corev1.PodTemplateSpec{})
+func isEmptyPodTemplateSpec(pts *corev1.PodTemplateSpec) bool {
+	if pts == nil {
+		return true
+	}
+	return reflect.DeepEqual(*pts, corev1.PodTemplateSpec{})
 }
 
 // isDNSLabel validates if string is a valid DNS label (RFC 1123).

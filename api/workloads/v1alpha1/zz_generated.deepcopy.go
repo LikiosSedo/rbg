@@ -1085,7 +1085,11 @@ func (in *RoleSpec) DeepCopyInto(out *RoleSpec) {
 		**out = **in
 	}
 	in.TemplatePatch.DeepCopyInto(&out.TemplatePatch)
-	in.Template.DeepCopyInto(&out.Template)
+	if in.Template != nil {
+		in, out := &in.Template, &out.Template
+		*out = new(v1.PodTemplateSpec)
+		(*in).DeepCopyInto(*out)
+	}
 	in.LeaderWorkerSet.DeepCopyInto(&out.LeaderWorkerSet)
 	if in.ServicePorts != nil {
 		in, out := &in.ServicePorts, &out.ServicePorts

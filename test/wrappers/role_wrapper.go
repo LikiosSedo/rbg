@@ -46,7 +46,7 @@ func (roleWrapper *RoleWrapper) WithMaxSurge(value int32) *RoleWrapper {
 }
 
 func (roleWrapper *RoleWrapper) WithTemplate(template corev1.PodTemplateSpec) *RoleWrapper {
-	roleWrapper.Template = template
+	roleWrapper.Template = &template
 	return roleWrapper
 }
 
@@ -124,21 +124,7 @@ func (roleWrapper *RoleWrapper) WithTemplatePatch(patch runtime.RawExtension) *R
 }
 
 func BuildBasicRole(name string) *RoleWrapper {
-	// Provide minimal placeholder template to satisfy CRD validation
-	// When templateRef is set, this will be ignored (priority mode)
-	// Use busybox instead of scratch to ensure a valid, runnable container
-	placeholderTemplate := corev1.PodTemplateSpec{
-		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{
-				{
-					Name:    "placeholder",
-					Image:   "busybox:latest",
-					Command: []string{"sleep", "infinity"},
-				},
-			},
-		},
-	}
-
+	template := BuildBasicPodTemplateSpec().Obj()
 	return &RoleWrapper{
 		workloadsv1alpha.RoleSpec{
 			Name:     name,
@@ -150,7 +136,7 @@ func BuildBasicRole(name string) *RoleWrapper {
 				APIVersion: "apps/v1",
 				Kind:       "StatefulSet",
 			},
-			Template: placeholderTemplate,
+			Template: &template,
 		},
 	}
 }
@@ -158,6 +144,7 @@ func BuildBasicRole(name string) *RoleWrapper {
 func BuildLwsRole(name string) *RoleWrapper {
 	leaderPatch := BuildLWSTemplatePatch(map[string]string{"role": "leader"})
 	workerPatch := BuildLWSTemplatePatch(map[string]string{"role": "worker"})
+	template := BuildBasicPodTemplateSpec().Obj()
 
 	return &RoleWrapper{
 		workloadsv1alpha.RoleSpec{
@@ -170,7 +157,7 @@ func BuildLwsRole(name string) *RoleWrapper {
 				APIVersion: "leaderworkerset.x-k8s.io/v1",
 				Kind:       "LeaderWorkerSet",
 			},
-			Template: BuildBasicPodTemplateSpec().Obj(),
+			Template: &template,
 			LeaderWorkerSet: workloadsv1alpha.LeaderWorkerTemplate{
 				Size:                ptr.To(int32(2)),
 				PatchLeaderTemplate: leaderPatch,
