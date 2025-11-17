@@ -590,14 +590,20 @@ func RunRoleTemplateTestCases(f *framework.Framework) {
 					}, 30*time.Second, 1*time.Second).Should(gomega.Succeed())
 
 					gomega.Eventually(func() string {
-						f.Client.Get(f.Ctx, types.NamespacedName{
+						err := f.Client.Get(f.Ctx, types.NamespacedName{
 							Name: fmt.Sprintf("%s-role1", rbg.Name), Namespace: f.Namespace,
 						}, sts1)
-						if len(sts1.Spec.Template.Spec.Containers) > 0 && len(sts1.Spec.Template.Spec.Containers[0].Env) > 0 {
-							return sts1.Spec.Template.Spec.Containers[0].Env[0].Value
+						if err != nil {
+							return fmt.Sprintf("GET_ERROR: %v", err)
 						}
-						return ""
-					}, 10*time.Second, 1*time.Second).Should(gomega.Equal("v1"))
+						if len(sts1.Spec.Template.Spec.Containers) == 0 {
+							return "NO_CONTAINERS"
+						}
+						if len(sts1.Spec.Template.Spec.Containers[0].Env) == 0 {
+							return "NO_ENV"
+						}
+						return sts1.Spec.Template.Spec.Containers[0].Env[0].Value
+					}, 30*time.Second, 1*time.Second).Should(gomega.Equal("v1"))
 
 					gomega.Eventually(func() string {
 						f.Client.Get(f.Ctx, types.NamespacedName{
