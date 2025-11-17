@@ -519,7 +519,7 @@ func RunRoleTemplateTestCases(f *framework.Framework) {
 							},
 						}).Obj()
 
-					emptyPatch := buildTemplatePatch(map[string]interface{}{})
+					emptyPatch := runtime.RawExtension{}
 
 					rbg := wrappers.BuildBasicRoleBasedGroup("e2e-shared-update", f.Namespace).
 						WithRoleTemplates([]workloadsv1alpha1.RoleTemplate{
