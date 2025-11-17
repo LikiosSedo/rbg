@@ -374,6 +374,139 @@ func RunRoleTemplateTestCases(f *framework.Framework) {
 			)
 
 			ginkgo.It(
+				"multiple roles share same roleTemplate with different patches", func() {
+					baseTemplate := wrappers.BuildBasicPodTemplateSpec().
+						WithContainers([]corev1.Container{
+							{
+								Name:  "app",
+								Image: "registry-cn-shanghai.siflow.cn/k8s/nginx:latest",
+								Resources: corev1.ResourceRequirements{
+									Requests: corev1.ResourceList{
+										corev1.ResourceCPU:    resource.MustParse("100m"),
+										corev1.ResourceMemory: resource.MustParse("128Mi"),
+									},
+								},
+							},
+						}).Obj()
+
+					workerPatch := buildTemplatePatch(map[string]interface{}{
+						"spec": map[string]interface{}{
+							"containers": []map[string]interface{}{
+								{
+									"name": "app",
+									"resources": map[string]interface{}{
+										"requests": map[string]interface{}{
+											"cpu": "500m",
+										},
+									},
+								},
+							},
+						},
+					})
+
+					cachePatch := buildTemplatePatch(map[string]interface{}{
+						"spec": map[string]interface{}{
+							"containers": []map[string]interface{}{
+								{
+									"name": "app",
+									"resources": map[string]interface{}{
+										"requests": map[string]interface{}{
+											"memory": "512Mi",
+										},
+									},
+								},
+							},
+						},
+					})
+
+					proxyPatch := buildTemplatePatch(map[string]interface{}{
+						"spec": map[string]interface{}{
+							"containers": []map[string]interface{}{
+								{
+									"name": "app",
+									"resources": map[string]interface{}{
+										"requests": map[string]interface{}{
+											"cpu":    "50m",
+											"memory": "64Mi",
+										},
+									},
+								},
+							},
+						},
+					})
+
+					rbg := wrappers.BuildBasicRoleBasedGroup("e2e-shared-template", f.Namespace).
+						WithRoleTemplates([]workloadsv1alpha1.RoleTemplate{
+							{Name: "common-app", Template: baseTemplate},
+						}).
+						WithRoles([]workloadsv1alpha1.RoleSpec{
+							wrappers.BuildBasicRole("worker").
+								WithTemplateRef("common-app").
+								WithTemplatePatch(workerPatch).
+								WithWorkload(workloadsv1alpha1.StatefulSetWorkloadType).
+								Obj(),
+							wrappers.BuildBasicRole("cache").
+								WithTemplateRef("common-app").
+								WithTemplatePatch(cachePatch).
+								WithWorkload(workloadsv1alpha1.StatefulSetWorkloadType).
+								Obj(),
+							wrappers.BuildBasicRole("proxy").
+								WithTemplateRef("common-app").
+								WithTemplatePatch(proxyPatch).
+								WithWorkload(workloadsv1alpha1.StatefulSetWorkloadType).
+								Obj(),
+						}).Obj()
+
+					gomega.Expect(f.Client.Create(f.Ctx, rbg)).Should(gomega.Succeed())
+					f.ExpectRbgEqual(rbg)
+
+					workerSts := &appsv1.StatefulSet{}
+					gomega.Eventually(func() error {
+						return f.Client.Get(f.Ctx, types.NamespacedName{
+							Name:      fmt.Sprintf("%s-%s", rbg.Name, "worker"),
+							Namespace: f.Namespace,
+						}, workerSts)
+					}, 30*time.Second, 1*time.Second).Should(gomega.Succeed())
+
+					workerCPU := workerSts.Spec.Template.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU]
+					gomega.Expect(workerCPU).To(gomega.Equal(resource.MustParse("500m")))
+					gomega.Expect(workerSts.Spec.Template.Spec.Containers[0].Image).To(
+						gomega.Equal("registry-cn-shanghai.siflow.cn/k8s/nginx:latest"))
+
+					cacheSts := &appsv1.StatefulSet{}
+					gomega.Eventually(func() error {
+						return f.Client.Get(f.Ctx, types.NamespacedName{
+							Name:      fmt.Sprintf("%s-%s", rbg.Name, "cache"),
+							Namespace: f.Namespace,
+						}, cacheSts)
+					}, 30*time.Second, 1*time.Second).Should(gomega.Succeed())
+
+					cacheMem := cacheSts.Spec.Template.Spec.Containers[0].Resources.Requests[corev1.ResourceMemory]
+					gomega.Expect(cacheMem).To(gomega.Equal(resource.MustParse("512Mi")))
+					gomega.Expect(cacheSts.Spec.Template.Spec.Containers[0].Image).To(
+						gomega.Equal("registry-cn-shanghai.siflow.cn/k8s/nginx:latest"))
+
+					proxySts := &appsv1.StatefulSet{}
+					gomega.Eventually(func() error {
+						return f.Client.Get(f.Ctx, types.NamespacedName{
+							Name:      fmt.Sprintf("%s-%s", rbg.Name, "proxy"),
+							Namespace: f.Namespace,
+						}, proxySts)
+					}, 30*time.Second, 1*time.Second).Should(gomega.Succeed())
+
+					proxyCPU := proxySts.Spec.Template.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU]
+					proxyMem := proxySts.Spec.Template.Spec.Containers[0].Resources.Requests[corev1.ResourceMemory]
+					gomega.Expect(proxyCPU).To(gomega.Equal(resource.MustParse("50m")))
+					gomega.Expect(proxyMem).To(gomega.Equal(resource.MustParse("64Mi")))
+					gomega.Expect(proxySts.Spec.Template.Spec.Containers[0].Image).To(
+						gomega.Equal("registry-cn-shanghai.siflow.cn/k8s/nginx:latest"))
+
+					gomega.Expect(f.Client.Delete(f.Ctx, rbg)).Should(gomega.Succeed())
+					f.ExpectRbgDeleted(rbg)
+				},
+			)
+
+			ginkgo.It(
 				"verify controllerrevision includes roleTemplates", func() {
 					baseTemplate := wrappers.BuildBasicPodTemplateSpec().
 						WithContainers([]corev1.Container{
