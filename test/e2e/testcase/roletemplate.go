@@ -258,6 +258,122 @@ func RunRoleTemplateTestCases(f *framework.Framework) {
 			)
 
 			ginkgo.It(
+				"update templatePatch without changing roleTemplate triggers update", func() {
+					baseTemplate := wrappers.BuildBasicPodTemplateSpec().
+						WithContainers([]corev1.Container{
+							{
+								Name:  "app",
+								Image: "registry-cn-shanghai.siflow.cn/k8s/nginx:latest",
+								Resources: corev1.ResourceRequirements{
+									Requests: corev1.ResourceList{
+										corev1.ResourceCPU:    resource.MustParse("100m"),
+										corev1.ResourceMemory: resource.MustParse("128Mi"),
+									},
+								},
+							},
+						}).Obj()
+
+					initialPatch := buildTemplatePatch(map[string]interface{}{
+						"spec": map[string]interface{}{
+							"containers": []map[string]interface{}{
+								{
+									"name": "app",
+									"resources": map[string]interface{}{
+										"requests": map[string]interface{}{
+											"cpu": "200m",
+										},
+									},
+								},
+							},
+						},
+					})
+
+					rbg := wrappers.BuildBasicRoleBasedGroup("e2e-patch-update", f.Namespace).
+						WithRoleTemplates([]workloadsv1alpha1.RoleTemplate{
+							{Name: "base", Template: baseTemplate},
+						}).
+						WithRoles([]workloadsv1alpha1.RoleSpec{
+							wrappers.BuildBasicRole("role1").
+								WithTemplateRef("base").
+								WithTemplatePatch(initialPatch).
+								WithWorkload(workloadsv1alpha1.StatefulSetWorkloadType).
+								WithReplicas(1).
+								Obj(),
+						}).Obj()
+
+					gomega.Expect(f.Client.Create(f.Ctx, rbg)).Should(gomega.Succeed())
+					f.ExpectRbgEqual(rbg)
+
+					sts := &appsv1.StatefulSet{}
+					gomega.Eventually(func() error {
+						return f.Client.Get(f.Ctx, types.NamespacedName{
+							Name:      fmt.Sprintf("%s-%s", rbg.Name, "role1"),
+							Namespace: f.Namespace,
+						}, sts)
+					}, 30*time.Second, 1*time.Second).Should(gomega.Succeed())
+
+					initialCPU := sts.Spec.Template.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU]
+					gomega.Expect(initialCPU).To(gomega.Equal(resource.MustParse("200m")))
+
+					initialRevision := sts.Status.CurrentRevision
+
+					updatedPatch := buildTemplatePatch(map[string]interface{}{
+						"spec": map[string]interface{}{
+							"containers": []map[string]interface{}{
+								{
+									"name": "app",
+									"resources": map[string]interface{}{
+										"requests": map[string]interface{}{
+											"cpu": "300m",
+										},
+									},
+								},
+							},
+						},
+					})
+
+					gomega.Eventually(func() error {
+						err := f.Client.Get(f.Ctx, types.NamespacedName{
+							Name:      rbg.Name,
+							Namespace: f.Namespace,
+						}, rbg)
+						if err != nil {
+							return err
+						}
+						rbg.Spec.Roles[0].TemplatePatch = updatedPatch
+						return f.Client.Update(f.Ctx, rbg)
+					}, 30*time.Second, 1*time.Second).Should(gomega.Succeed())
+
+					gomega.Eventually(func() bool {
+						err := f.Client.Get(f.Ctx, types.NamespacedName{
+							Name:      fmt.Sprintf("%s-%s", rbg.Name, "role1"),
+							Namespace: f.Namespace,
+						}, sts)
+						if err != nil {
+							return false
+						}
+						return sts.Status.UpdateRevision != "" &&
+							sts.Status.UpdateRevision != initialRevision
+					}, 60*time.Second, 2*time.Second).Should(gomega.BeTrue())
+
+					gomega.Eventually(func() string {
+						err := f.Client.Get(f.Ctx, types.NamespacedName{
+							Name:      fmt.Sprintf("%s-%s", rbg.Name, "role1"),
+							Namespace: f.Namespace,
+						}, sts)
+						if err != nil {
+							return ""
+						}
+						cpu := sts.Spec.Template.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU]
+						return cpu.String()
+					}, 30*time.Second, 1*time.Second).Should(gomega.Equal("300m"))
+
+					gomega.Expect(f.Client.Delete(f.Ctx, rbg)).Should(gomega.Succeed())
+					f.ExpectRbgDeleted(rbg)
+				},
+			)
+
+			ginkgo.It(
 				"verify controllerrevision includes roleTemplates", func() {
 					baseTemplate := wrappers.BuildBasicPodTemplateSpec().
 						WithContainers([]corev1.Container{
