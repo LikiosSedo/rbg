@@ -507,6 +507,160 @@ func RunRoleTemplateTestCases(f *framework.Framework) {
 			)
 
 			ginkgo.It(
+				"update shared roleTemplate triggers all dependent roles to update", func() {
+					baseTemplate := wrappers.BuildBasicPodTemplateSpec().
+						WithContainers([]corev1.Container{
+							{
+								Name:  "app",
+								Image: "registry-cn-shanghai.siflow.cn/k8s/nginx:latest",
+								Env: []corev1.EnvVar{
+									{Name: "VERSION", Value: "v1"},
+								},
+							},
+						}).Obj()
+
+					emptyPatch := buildTemplatePatch(map[string]interface{}{})
+
+					rbg := wrappers.BuildBasicRoleBasedGroup("e2e-shared-update", f.Namespace).
+						WithRoleTemplates([]workloadsv1alpha1.RoleTemplate{
+							{Name: "base", Template: baseTemplate},
+						}).
+						WithRoles([]workloadsv1alpha1.RoleSpec{
+							wrappers.BuildBasicRole("role1").
+								WithTemplateRef("base").
+								WithTemplatePatch(emptyPatch).
+								WithWorkload(workloadsv1alpha1.StatefulSetWorkloadType).
+								WithReplicas(1).
+								Obj(),
+							wrappers.BuildBasicRole("role2").
+								WithTemplateRef("base").
+								WithTemplatePatch(emptyPatch).
+								WithWorkload(workloadsv1alpha1.StatefulSetWorkloadType).
+								WithReplicas(1).
+								Obj(),
+							wrappers.BuildBasicRole("role3").
+								WithTemplateRef("base").
+								WithTemplatePatch(emptyPatch).
+								WithWorkload(workloadsv1alpha1.StatefulSetWorkloadType).
+								WithReplicas(1).
+								Obj(),
+						}).Obj()
+
+					gomega.Expect(f.Client.Create(f.Ctx, rbg)).Should(gomega.Succeed())
+					f.ExpectRbgEqual(rbg)
+
+					sts1 := &appsv1.StatefulSet{}
+					sts2 := &appsv1.StatefulSet{}
+					sts3 := &appsv1.StatefulSet{}
+
+					gomega.Eventually(func() error {
+						return f.Client.Get(f.Ctx, types.NamespacedName{
+							Name: fmt.Sprintf("%s-role1", rbg.Name), Namespace: f.Namespace,
+						}, sts1)
+					}, 30*time.Second, 1*time.Second).Should(gomega.Succeed())
+
+					gomega.Eventually(func() error {
+						return f.Client.Get(f.Ctx, types.NamespacedName{
+							Name: fmt.Sprintf("%s-role2", rbg.Name), Namespace: f.Namespace,
+						}, sts2)
+					}, 30*time.Second, 1*time.Second).Should(gomega.Succeed())
+
+					gomega.Eventually(func() error {
+						return f.Client.Get(f.Ctx, types.NamespacedName{
+							Name: fmt.Sprintf("%s-role3", rbg.Name), Namespace: f.Namespace,
+						}, sts3)
+					}, 30*time.Second, 1*time.Second).Should(gomega.Succeed())
+
+					gomega.Expect(sts1.Spec.Template.Spec.Containers[0].Env[0].Value).To(gomega.Equal("v1"))
+					gomega.Expect(sts2.Spec.Template.Spec.Containers[0].Env[0].Value).To(gomega.Equal("v1"))
+					gomega.Expect(sts3.Spec.Template.Spec.Containers[0].Env[0].Value).To(gomega.Equal("v1"))
+
+					initialRevision1 := sts1.Status.CurrentRevision
+					initialRevision2 := sts2.Status.CurrentRevision
+					initialRevision3 := sts3.Status.CurrentRevision
+
+					updatedTemplate := wrappers.BuildBasicPodTemplateSpec().
+						WithContainers([]corev1.Container{
+							{
+								Name:  "app",
+								Image: "registry-cn-shanghai.siflow.cn/k8s/nginx:latest",
+								Env: []corev1.EnvVar{
+									{Name: "VERSION", Value: "v2"},
+								},
+							},
+						}).Obj()
+
+					gomega.Eventually(func() error {
+						err := f.Client.Get(f.Ctx, types.NamespacedName{
+							Name: rbg.Name, Namespace: f.Namespace,
+						}, rbg)
+						if err != nil {
+							return err
+						}
+						rbg.Spec.RoleTemplates[0].Template = updatedTemplate
+						return f.Client.Update(f.Ctx, rbg)
+					}, 30*time.Second, 1*time.Second).Should(gomega.Succeed())
+
+					gomega.Eventually(func() bool {
+						f.Client.Get(f.Ctx, types.NamespacedName{
+							Name: fmt.Sprintf("%s-role1", rbg.Name), Namespace: f.Namespace,
+						}, sts1)
+						return sts1.Status.UpdateRevision != "" &&
+							sts1.Status.UpdateRevision != initialRevision1
+					}, 90*time.Second, 2*time.Second).Should(gomega.BeTrue())
+
+					gomega.Eventually(func() bool {
+						f.Client.Get(f.Ctx, types.NamespacedName{
+							Name: fmt.Sprintf("%s-role2", rbg.Name), Namespace: f.Namespace,
+						}, sts2)
+						return sts2.Status.UpdateRevision != "" &&
+							sts2.Status.UpdateRevision != initialRevision2
+					}, 90*time.Second, 2*time.Second).Should(gomega.BeTrue())
+
+					gomega.Eventually(func() bool {
+						f.Client.Get(f.Ctx, types.NamespacedName{
+							Name: fmt.Sprintf("%s-role3", rbg.Name), Namespace: f.Namespace,
+						}, sts3)
+						return sts3.Status.UpdateRevision != "" &&
+							sts3.Status.UpdateRevision != initialRevision3
+					}, 90*time.Second, 2*time.Second).Should(gomega.BeTrue())
+
+					gomega.Eventually(func() string {
+						f.Client.Get(f.Ctx, types.NamespacedName{
+							Name: fmt.Sprintf("%s-role1", rbg.Name), Namespace: f.Namespace,
+						}, sts1)
+						if len(sts1.Spec.Template.Spec.Containers[0].Env) > 0 {
+							return sts1.Spec.Template.Spec.Containers[0].Env[0].Value
+						}
+						return ""
+					}, 30*time.Second, 1*time.Second).Should(gomega.Equal("v2"))
+
+					gomega.Eventually(func() string {
+						f.Client.Get(f.Ctx, types.NamespacedName{
+							Name: fmt.Sprintf("%s-role2", rbg.Name), Namespace: f.Namespace,
+						}, sts2)
+						if len(sts2.Spec.Template.Spec.Containers[0].Env) > 0 {
+							return sts2.Spec.Template.Spec.Containers[0].Env[0].Value
+						}
+						return ""
+					}, 30*time.Second, 1*time.Second).Should(gomega.Equal("v2"))
+
+					gomega.Eventually(func() string {
+						f.Client.Get(f.Ctx, types.NamespacedName{
+							Name: fmt.Sprintf("%s-role3", rbg.Name), Namespace: f.Namespace,
+						}, sts3)
+						if len(sts3.Spec.Template.Spec.Containers[0].Env) > 0 {
+							return sts3.Spec.Template.Spec.Containers[0].Env[0].Value
+						}
+						return ""
+					}, 30*time.Second, 1*time.Second).Should(gomega.Equal("v2"))
+
+					gomega.Expect(f.Client.Delete(f.Ctx, rbg)).Should(gomega.Succeed())
+					f.ExpectRbgDeleted(rbg)
+				},
+			)
+
+			ginkgo.It(
 				"verify controllerrevision includes roleTemplates", func() {
 					baseTemplate := wrappers.BuildBasicPodTemplateSpec().
 						WithContainers([]corev1.Container{
