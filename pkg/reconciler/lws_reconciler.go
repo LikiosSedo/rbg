@@ -2,6 +2,7 @@ package reconciler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -10,6 +11,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/utils/ptr"
 
 	corev1 "k8s.io/api/core/v1"
@@ -516,7 +518,6 @@ func patchPodTemplate(template *corev1.PodTemplateSpec, patch *runtime.RawExtens
 	}
 	return newTemp, nil
 }
-
 
 func keyOfRbg(rbg *workloadsv1alpha1.RoleBasedGroup) string {
 	return fmt.Sprintf("%s/%s", rbg.Namespace, rbg.Name)
