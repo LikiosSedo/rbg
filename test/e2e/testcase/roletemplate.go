@@ -571,9 +571,35 @@ func RunRoleTemplateTestCases(f *framework.Framework) {
 						}, sts3)
 					}, 30*time.Second, 1*time.Second).Should(gomega.Succeed())
 
-					gomega.Expect(sts1.Spec.Template.Spec.Containers[0].Env[0].Value).To(gomega.Equal("v1"))
-					gomega.Expect(sts2.Spec.Template.Spec.Containers[0].Env[0].Value).To(gomega.Equal("v1"))
-					gomega.Expect(sts3.Spec.Template.Spec.Containers[0].Env[0].Value).To(gomega.Equal("v1"))
+					gomega.Eventually(func() string {
+						f.Client.Get(f.Ctx, types.NamespacedName{
+							Name: fmt.Sprintf("%s-role1", rbg.Name), Namespace: f.Namespace,
+						}, sts1)
+						if len(sts1.Spec.Template.Spec.Containers) > 0 && len(sts1.Spec.Template.Spec.Containers[0].Env) > 0 {
+							return sts1.Spec.Template.Spec.Containers[0].Env[0].Value
+						}
+						return ""
+					}, 10*time.Second, 1*time.Second).Should(gomega.Equal("v1"))
+
+					gomega.Eventually(func() string {
+						f.Client.Get(f.Ctx, types.NamespacedName{
+							Name: fmt.Sprintf("%s-role2", rbg.Name), Namespace: f.Namespace,
+						}, sts2)
+						if len(sts2.Spec.Template.Spec.Containers) > 0 && len(sts2.Spec.Template.Spec.Containers[0].Env) > 0 {
+							return sts2.Spec.Template.Spec.Containers[0].Env[0].Value
+						}
+						return ""
+					}, 10*time.Second, 1*time.Second).Should(gomega.Equal("v1"))
+
+					gomega.Eventually(func() string {
+						f.Client.Get(f.Ctx, types.NamespacedName{
+							Name: fmt.Sprintf("%s-role3", rbg.Name), Namespace: f.Namespace,
+						}, sts3)
+						if len(sts3.Spec.Template.Spec.Containers) > 0 && len(sts3.Spec.Template.Spec.Containers[0].Env) > 0 {
+							return sts3.Spec.Template.Spec.Containers[0].Env[0].Value
+						}
+						return ""
+					}, 10*time.Second, 1*time.Second).Should(gomega.Equal("v1"))
 
 					initialRevision1 := sts1.Status.CurrentRevision
 					initialRevision2 := sts2.Status.CurrentRevision
