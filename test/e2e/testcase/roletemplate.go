@@ -839,6 +839,150 @@ func RunRoleTemplateTestCases(f *framework.Framework) {
 					f.ExpectRbgDeleted(rbg)
 				},
 			)
+
+			ginkgo.It(
+				"prefill-decode separation with shared roleTemplate", func() {
+					// Base template for LLM inference workload
+					baseTemplate := wrappers.BuildBasicPodTemplateSpec().
+						WithContainers([]corev1.Container{
+							{
+								Name:  "inference",
+								Image: "registry-cn-shanghai.siflow.cn/k8s/nginx:latest",
+								Resources: corev1.ResourceRequirements{
+									Requests: corev1.ResourceList{
+										corev1.ResourceCPU:    resource.MustParse("1"),
+										corev1.ResourceMemory: resource.MustParse("2Gi"),
+									},
+								},
+							},
+						}).Obj()
+
+					// Prefill patch: higher CPU, more memory (compute-intensive)
+					prefillPatch := buildTemplatePatch(map[string]interface{}{
+						"spec": map[string]interface{}{
+							"containers": []map[string]interface{}{
+								{
+									"name": "inference",
+									"resources": map[string]interface{}{
+										"requests": map[string]interface{}{
+											"cpu":    "4",
+											"memory": "8Gi",
+										},
+									},
+									"env": []map[string]interface{}{
+										{
+											"name":  "STAGE",
+											"value": "prefill",
+										},
+									},
+								},
+							},
+						},
+					})
+
+					// Decode patch: lower CPU, less memory (latency-sensitive)
+					decodePatch := buildTemplatePatch(map[string]interface{}{
+						"spec": map[string]interface{}{
+							"containers": []map[string]interface{}{
+								{
+									"name": "inference",
+									"resources": map[string]interface{}{
+										"requests": map[string]interface{}{
+											"cpu":    "2",
+											"memory": "4Gi",
+										},
+									},
+									"env": []map[string]interface{}{
+										{
+											"name":  "STAGE",
+											"value": "decode",
+										},
+									},
+								},
+							},
+						},
+					})
+
+					rbg := wrappers.BuildBasicRoleBasedGroup("e2e-pd-separation", f.Namespace).
+						WithRoleTemplates([]workloadsv1alpha1.RoleTemplate{
+							{Name: "llm-inference", Template: baseTemplate},
+						}).
+						WithRoles([]workloadsv1alpha1.RoleSpec{
+							wrappers.BuildBasicRole("prefill").
+								WithTemplateRef("llm-inference").
+								WithTemplatePatch(prefillPatch).
+								WithWorkload(workloadsv1alpha1.StatefulSetWorkloadType).
+								WithReplicas(2).
+								Obj(),
+							wrappers.BuildBasicRole("decode").
+								WithTemplateRef("llm-inference").
+								WithTemplatePatch(decodePatch).
+								WithWorkload(workloadsv1alpha1.StatefulSetWorkloadType).
+								WithReplicas(3).
+								Obj(),
+						}).Obj()
+
+					gomega.Expect(f.Client.Create(f.Ctx, rbg)).Should(gomega.Succeed())
+					f.ExpectRbgEqual(rbg)
+
+					// Verify prefill role resources
+					prefillSts := &appsv1.StatefulSet{}
+					gomega.Eventually(func() error {
+						return f.Client.Get(f.Ctx, types.NamespacedName{
+							Name:      fmt.Sprintf("%s-prefill", rbg.Name),
+							Namespace: f.Namespace,
+						}, prefillSts)
+					}, 30*time.Second, 1*time.Second).Should(gomega.Succeed())
+
+					prefillCPU := prefillSts.Spec.Template.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU]
+					prefillMem := prefillSts.Spec.Template.Spec.Containers[0].Resources.Requests[corev1.ResourceMemory]
+					gomega.Expect(prefillCPU).To(gomega.Equal(resource.MustParse("4")))
+					gomega.Expect(prefillMem).To(gomega.Equal(resource.MustParse("8Gi")))
+
+					// Verify prefill ENV
+					var prefillStage string
+					for _, env := range prefillSts.Spec.Template.Spec.Containers[0].Env {
+						if env.Name == "STAGE" {
+							prefillStage = env.Value
+							break
+						}
+					}
+					gomega.Expect(prefillStage).To(gomega.Equal("prefill"))
+
+					// Verify decode role resources
+					decodeSts := &appsv1.StatefulSet{}
+					gomega.Eventually(func() error {
+						return f.Client.Get(f.Ctx, types.NamespacedName{
+							Name:      fmt.Sprintf("%s-decode", rbg.Name),
+							Namespace: f.Namespace,
+						}, decodeSts)
+					}, 30*time.Second, 1*time.Second).Should(gomega.Succeed())
+
+					decodeCPU := decodeSts.Spec.Template.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU]
+					decodeMem := decodeSts.Spec.Template.Spec.Containers[0].Resources.Requests[corev1.ResourceMemory]
+					gomega.Expect(decodeCPU).To(gomega.Equal(resource.MustParse("2")))
+					gomega.Expect(decodeMem).To(gomega.Equal(resource.MustParse("4Gi")))
+
+					// Verify decode ENV
+					var decodeStage string
+					for _, env := range decodeSts.Spec.Template.Spec.Containers[0].Env {
+						if env.Name == "STAGE" {
+							decodeStage = env.Value
+							break
+						}
+					}
+					gomega.Expect(decodeStage).To(gomega.Equal("decode"))
+
+					// Verify both share the same base image
+					gomega.Expect(prefillSts.Spec.Template.Spec.Containers[0].Image).To(
+						gomega.Equal("registry-cn-shanghai.siflow.cn/k8s/nginx:latest"))
+					gomega.Expect(decodeSts.Spec.Template.Spec.Containers[0].Image).To(
+						gomega.Equal("registry-cn-shanghai.siflow.cn/k8s/nginx:latest"))
+
+					gomega.Expect(f.Client.Delete(f.Ctx, rbg)).Should(gomega.Succeed())
+					f.ExpectRbgDeleted(rbg)
+				},
+			)
 		},
 	)
 }
