@@ -174,6 +174,12 @@ func RunRoleTemplateTestCases(f *framework.Framework) {
 							{
 								Name:  "app",
 								Image: "registry-cn-shanghai.siflow.cn/k8s/nginx:latest",
+								Resources: corev1.ResourceRequirements{
+									Requests: corev1.ResourceList{
+										corev1.ResourceCPU:    resource.MustParse("100m"),
+										corev1.ResourceMemory: resource.MustParse("128Mi"),
+									},
+								},
 							},
 						}).Obj()
 
@@ -211,6 +217,12 @@ func RunRoleTemplateTestCases(f *framework.Framework) {
 							{
 								Name:  "app",
 								Image: "registry-cn-shanghai.siflow.cn/k8s/nginx:latest",
+								Resources: corev1.ResourceRequirements{
+									Requests: corev1.ResourceList{
+										corev1.ResourceCPU:    resource.MustParse("100m"),
+										corev1.ResourceMemory: resource.MustParse("128Mi"),
+									},
+								},
 								Env: []corev1.EnvVar{
 									{Name: "VERSION", Value: "v2"},
 								},
@@ -513,6 +525,12 @@ func RunRoleTemplateTestCases(f *framework.Framework) {
 							{
 								Name:  "app",
 								Image: "registry-cn-shanghai.siflow.cn/k8s/nginx:latest",
+								Resources: corev1.ResourceRequirements{
+									Requests: corev1.ResourceList{
+										corev1.ResourceCPU:    resource.MustParse("100m"),
+										corev1.ResourceMemory: resource.MustParse("128Mi"),
+									},
+								},
 								Env: []corev1.EnvVar{
 									{Name: "VERSION", Value: "v1"},
 								},
@@ -610,6 +628,12 @@ func RunRoleTemplateTestCases(f *framework.Framework) {
 							{
 								Name:  "app",
 								Image: "registry-cn-shanghai.siflow.cn/k8s/nginx:latest",
+								Resources: corev1.ResourceRequirements{
+									Requests: corev1.ResourceList{
+										corev1.ResourceCPU:    resource.MustParse("100m"),
+										corev1.ResourceMemory: resource.MustParse("128Mi"),
+									},
+								},
 								Env: []corev1.EnvVar{
 									{Name: "VERSION", Value: "v2"},
 								},
