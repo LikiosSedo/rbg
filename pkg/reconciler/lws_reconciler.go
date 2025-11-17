@@ -2,11 +2,13 @@ package reconciler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
 	"time"
 
+	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/utils/ptr"
 
 	corev1 "k8s.io/api/core/v1"
@@ -194,9 +196,9 @@ func (r *LeaderWorkerSetReconciler) constructLWSApplyConfiguration(
 			return nil, fmt.Errorf("failed to apply templatePatch: %w", err)
 		}
 		baseTemplate = merged
-	} else {
-		// Traditional mode: use role.Template directly
-		baseTemplate = role.Template
+	} else if role.Template != nil {
+		// Traditional mode: use role.Template directly (pointer type after migration)
+		baseTemplate = *role.Template
 	}
 
 	// leaderTemplate
@@ -207,7 +209,7 @@ func (r *LeaderWorkerSetReconciler) constructLWSApplyConfiguration(
 		return nil, err
 	}
 	leaderTemplateApplyCfg, err := podReconciler.ConstructPodTemplateSpecApplyConfiguration(
-		ctx, rbg, role, rbg.GetCommonLabelsFromRole(role), *leaderTemp,
+		ctx, rbg, role, rbg.GetCommonLabelsFromRole(role), leaderTemp,
 	)
 	if err != nil {
 		logger.Error(err, "patch Construct PodTemplateSpecApplyConfiguration failed", "rbg", keyOfRbg(rbg))
@@ -224,7 +226,7 @@ func (r *LeaderWorkerSetReconciler) constructLWSApplyConfiguration(
 	// workerTemplate do not need to inject sidecar
 	workerPodReconciler.SetInjectors([]string{"config", "env"})
 	workerTemplateApplyCfg, err := workerPodReconciler.ConstructPodTemplateSpecApplyConfiguration(
-		ctx, rbg, role, rbg.GetCommonLabelsFromRole(role), *workerTemp,
+		ctx, rbg, role, rbg.GetCommonLabelsFromRole(role), workerTemp,
 	)
 	if err != nil {
 		logger.Error(err, "patch Construct PodTemplateSpecApplyConfiguration failed", "rbg", keyOfRbg(rbg))
@@ -462,7 +464,6 @@ func patchPodTemplate(template *corev1.PodTemplateSpec, patch runtime.RawExtensi
 	}
 	return newTemp, nil
 }
-
 
 func keyOfRbg(rbg *workloadsv1alpha1.RoleBasedGroup) string {
 	return fmt.Sprintf("%s/%s", rbg.Namespace, rbg.Name)
