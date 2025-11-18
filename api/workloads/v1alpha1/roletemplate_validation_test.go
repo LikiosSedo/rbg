@@ -217,7 +217,7 @@ func TestValidateRoleTemplateReferences(t *testing.T) {
 			errMsg:  "templatePatch: required when templateRef is set",
 		},
 		{
-			name: "templateRef with non-empty template (mutually exclusive)",
+			name: "templateRef with non-empty template (allowed - templateRef takes priority)",
 			rbg: &RoleBasedGroup{
 				Spec: RoleBasedGroupSpec{
 					RoleTemplates: []RoleTemplate{
@@ -235,7 +235,7 @@ func TestValidateRoleTemplateReferences(t *testing.T) {
 							Name:        "prefill",
 							Replicas:    ptr.To(int32(1)),
 							TemplateRef: &TemplateRef{Name: "base"},
-							Template: &corev1.PodTemplateSpec{ // Should not be set
+							Template: &corev1.PodTemplateSpec{ // Allowed but ignored
 								Spec: corev1.PodSpec{
 									Containers: []corev1.Container{{Name: "app"}},
 								},
@@ -245,8 +245,7 @@ func TestValidateRoleTemplateReferences(t *testing.T) {
 					},
 				},
 			},
-			wantErr: true,
-			errMsg:  "must be empty when templateRef is set",
+			wantErr: false, // Changed: now allowed, templateRef takes priority
 		},
 		{
 			name: "templatePatch without templateRef",
@@ -287,6 +286,23 @@ func TestValidateRoleTemplateReferences(t *testing.T) {
 				},
 			},
 			wantErr: false,
+		},
+		{
+			name: "neither templateRef nor template (should fail)",
+			rbg: &RoleBasedGroup{
+				Spec: RoleBasedGroupSpec{
+					Roles: []RoleSpec{
+						{
+							Name:     "prefill",
+							Replicas: ptr.To(int32(1)),
+							// No TemplateRef
+							// No Template (nil)
+						},
+					},
+				},
+			},
+			wantErr: true,
+			errMsg:  "template: required when templateRef is not set",
 		},
 	}
 
