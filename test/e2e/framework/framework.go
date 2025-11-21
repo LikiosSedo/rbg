@@ -22,6 +22,8 @@ import (
 	lwsv1 "sigs.k8s.io/lws/api/leaderworkerset/v1"
 	workloadsv1alpha1 "sigs.k8s.io/rbgs/api/workloads/v1alpha1"
 	"sigs.k8s.io/rbgs/test/utils"
+	schev1alpha1 "sigs.k8s.io/scheduler-plugins/apis/scheduling/v1alpha1"
+	volcanoschedulingv1beta1 "volcano.sh/apis/pkg/apis/scheduling/v1beta1"
 )
 
 type Framework struct {
@@ -35,6 +37,8 @@ func NewFramework(development bool) *Framework {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(workloadsv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(lwsv1.AddToScheme(scheme))
+	utilruntime.Must(schev1alpha1.AddToScheme(scheme))
+	utilruntime.Must(volcanoschedulingv1beta1.AddToScheme(scheme))
 
 	cfg := config.GetConfigOrDie()
 	runtimeClient, err := client.New(cfg, client.Options{Scheme: scheme})
