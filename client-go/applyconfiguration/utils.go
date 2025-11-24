@@ -30,7 +30,7 @@ import (
 // apply configuration type exists for the given GroupVersionKind.
 func ForKind(kind schema.GroupVersionKind) interface{} {
 	switch kind {
-	// Group=workloads, Version=v1alpha1
+	// Group=workloads.x-k8s.io, Version=v1alpha1
 	case v1alpha1.SchemeGroupVersion.WithKind("AdapterScaleTargetRef"):
 		return &workloadsv1alpha1.AdapterScaleTargetRefApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("ClusterEngineRuntimeProfile"):
@@ -39,6 +39,12 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &workloadsv1alpha1.ClusterEngineRuntimeProfileSpecApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("ComponentStatus"):
 		return &workloadsv1alpha1.ComponentStatusApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("Coordination"):
+		return &workloadsv1alpha1.CoordinationApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("CoordinationRollingUpdate"):
+		return &workloadsv1alpha1.CoordinationRollingUpdateApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("CoordinationStrategy"):
+		return &workloadsv1alpha1.CoordinationStrategyApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("EngineRuntime"):
 		return &workloadsv1alpha1.EngineRuntimeApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("InPlaceUpdateStrategy"):

@@ -35,13 +35,30 @@ func NewLeaderWorkerSetReconciler(scheme *runtime.Scheme, client client.Client) 
 	return &LeaderWorkerSetReconciler{scheme: scheme, client: client}
 }
 
+func (r *LeaderWorkerSetReconciler) Validate(
+	ctx context.Context, role *workloadsv1alpha1.RoleSpec) error {
+	logger := log.FromContext(ctx)
+	logger.V(1).Info("start to validate role declaration")
+	// KEP-8: Allow templateRef as alternative to template
+	if role.Template == nil && role.TemplateRef == nil {
+		if role.LeaderWorkerSet == nil {
+			return fmt.Errorf("either 'template'/'templateRef' or 'leaderWorkerSet' field must be provided")
+		}
+		if role.LeaderWorkerSet.PatchLeaderTemplate == nil || role.LeaderWorkerSet.PatchWorkerTemplate == nil {
+			return fmt.Errorf("both 'patchLeaderTemplate' and 'patchWorkerTemplate' fields must be provided when 'template'/'templateRef' field not set")
+		}
+	}
+
+	return nil
+}
+
 func (r *LeaderWorkerSetReconciler) Reconciler(
 	ctx context.Context, rbg *workloadsv1alpha1.RoleBasedGroup, role *workloadsv1alpha1.RoleSpec,
-	revisionKey string) error {
+	rollingUpdateStrategy *workloadsv1alpha1.RollingUpdate, revisionKey string) error {
 	logger := log.FromContext(ctx)
 	logger.V(1).Info("start to reconciling lws workload")
 
-	lwsApplyConfig, err := r.constructLWSApplyConfiguration(ctx, rbg, role, revisionKey)
+	lwsApplyConfig, err := r.constructLWSApplyConfiguration(ctx, rbg, role, rollingUpdateStrategy, revisionKey)
 	if err != nil {
 		logger.Error(err, "Failed to construct lws apply configuration")
 		return err
@@ -95,17 +112,21 @@ func (r *LeaderWorkerSetReconciler) ConstructRoleStatus(
 	if err := r.client.Get(
 		ctx, types.NamespacedName{Name: rbg.GetWorkloadName(role), Namespace: rbg.Namespace}, lws,
 	); err != nil {
-		return workloadsv1alpha1.RoleStatus{}, false, err
+		return workloadsv1alpha1.RoleStatus{Name: role.Name}, false, err
 	}
 
 	currentReplicas := lws.Status.Replicas
 	currentReady := lws.Status.ReadyReplicas
+	updatedReplicas := lws.Status.UpdatedReplicas
 	status, found := rbg.GetRoleStatus(role.Name)
-	if !found || status.Replicas != currentReplicas || status.ReadyReplicas != currentReady {
+	if !found || status.Replicas != currentReplicas ||
+		status.ReadyReplicas != currentReady ||
+		status.UpdatedReplicas != updatedReplicas {
 		status = workloadsv1alpha1.RoleStatus{
-			Name:          role.Name,
-			Replicas:      currentReplicas,
-			ReadyReplicas: currentReady,
+			Name:            role.Name,
+			Replicas:        currentReplicas,
+			ReadyReplicas:   currentReady,
+			UpdatedReplicas: updatedReplicas,
 		}
 		updateStatus = true
 	}
@@ -176,6 +197,7 @@ func (r *LeaderWorkerSetReconciler) constructLWSApplyConfiguration(
 	ctx context.Context,
 	rbg *workloadsv1alpha1.RoleBasedGroup,
 	role *workloadsv1alpha1.RoleSpec,
+	rollingUpdateStrategy *workloadsv1alpha1.RollingUpdate,
 	revisionKey string,
 ) (*lwsapplyv1.LeaderWorkerSetApplyConfiguration, error) {
 	logger := log.FromContext(ctx)
@@ -201,9 +223,21 @@ func (r *LeaderWorkerSetReconciler) constructLWSApplyConfiguration(
 		}
 	}
 
+	// PR #108: Add nil check for leaderWorkerSet
+	leaderWorkerSet := role.LeaderWorkerSet
+	if leaderWorkerSet == nil {
+		leaderWorkerSet = &workloadsv1alpha1.LeaderWorkerTemplate{
+			Size: ptr.To(int32(1)),
+		}
+	}
+
 	// leaderTemplate
 	podReconciler := NewPodReconciler(r.scheme, r.client)
-	leaderTemp, err := applyStrategicMergePatch(baseTemplate, role.LeaderWorkerSet.PatchLeaderTemplate)
+	var leaderPatch runtime.RawExtension
+	if leaderWorkerSet.PatchLeaderTemplate != nil {
+		leaderPatch = *leaderWorkerSet.PatchLeaderTemplate
+	}
+	leaderTemp, err := applyStrategicMergePatch(baseTemplate, leaderPatch)
 	if err != nil {
 		logger.Error(err, "patch leader podTemplate failed", "rbg", keyOfRbg(rbg))
 		return nil, err
@@ -217,7 +251,11 @@ func (r *LeaderWorkerSetReconciler) constructLWSApplyConfiguration(
 	}
 
 	// workerTemplate
-	workerTemp, err := applyStrategicMergePatch(baseTemplate, role.LeaderWorkerSet.PatchWorkerTemplate)
+	var workerPatch runtime.RawExtension
+	if leaderWorkerSet.PatchWorkerTemplate != nil {
+		workerPatch = *leaderWorkerSet.PatchWorkerTemplate
+	}
+	workerTemp, err := applyStrategicMergePatch(baseTemplate, workerPatch)
 	if err != nil {
 		logger.Error(err, "patch worker podTemplate failed", "rbg", keyOfRbg(rbg))
 		return nil, err
@@ -255,7 +293,7 @@ func (r *LeaderWorkerSetReconciler) constructLWSApplyConfiguration(
 			lwsapplyv1.LeaderWorkerTemplate().
 				WithLeaderTemplate(leaderTemplateApplyCfg).
 				WithWorkerTemplate(workerTemplateApplyCfg).
-				WithSize(*role.LeaderWorkerSet.Size).
+				WithSize(*leaderWorkerSet.Size).
 				WithRestartPolicy(restartPolicy),
 		)
 
@@ -265,7 +303,15 @@ func (r *LeaderWorkerSetReconciler) constructLWSApplyConfiguration(
 			WithMaxSurge(role.RolloutStrategy.RollingUpdate.MaxSurge).
 			WithMaxUnavailable(role.RolloutStrategy.RollingUpdate.MaxUnavailable)
 
-		if role.RolloutStrategy.RollingUpdate.Partition != nil {
+		if rollingUpdateStrategy != nil {
+			rollingUpdateConfiguration =
+				rollingUpdateConfiguration.WithMaxUnavailable(rollingUpdateStrategy.MaxUnavailable)
+		}
+
+		if rollingUpdateStrategy != nil && rollingUpdateStrategy.Partition != nil {
+			rollingUpdateConfiguration =
+				rollingUpdateConfiguration.WithPartition(*rollingUpdateStrategy.Partition)
+		} else if role.RolloutStrategy.RollingUpdate.Partition != nil {
 			rollingUpdateConfiguration =
 				rollingUpdateConfiguration.WithPartition(*role.RolloutStrategy.RollingUpdate.Partition)
 		}
@@ -403,17 +449,10 @@ func lwsSpecEqual(lws1, lws2 lwsv1.LeaderWorkerSetSpec) (bool, error) {
 }
 
 func lwsStatusEqual(oldStatus, newStatus lwsv1.LeaderWorkerSetStatus) (bool, error) {
-	if oldStatus.Replicas != newStatus.Replicas {
-		return false, fmt.Errorf("status.replicas not equal, old: %v, new: %v", oldStatus.Replicas, newStatus.Replicas)
-	}
-
-	if oldStatus.ReadyReplicas != newStatus.ReadyReplicas {
-		return false, fmt.Errorf(
-			"status.ReadyReplicas not equal, old: %v, new: %v", oldStatus.ReadyReplicas, newStatus.ReadyReplicas,
-		)
+	if !reflect.DeepEqual(oldStatus, newStatus) {
+		return false, fmt.Errorf("status not equal")
 	}
 	return true, nil
-
 }
 
 func leaderWorkerTemplateEqual(oldLwt, newLwt lwsv1.LeaderWorkerTemplate) (bool, error) {
