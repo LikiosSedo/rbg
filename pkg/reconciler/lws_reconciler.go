@@ -44,12 +44,15 @@ func (r *LeaderWorkerSetReconciler) Validate(
 	ctx context.Context, role *workloadsv1alpha1.RoleSpec) error {
 	logger := log.FromContext(ctx)
 	logger.V(1).Info("start to validate role declaration")
-	if role.Template == nil {
+	// KEP-8: 支持 templateRef 模式
+	hasTemplate := role.Template != nil || role.UsesRoleTemplate()
+
+	if !hasTemplate {
 		if role.LeaderWorkerSet == nil {
-			return fmt.Errorf("either 'template' or 'leaderWorkerSet' field must be provided")
+			return fmt.Errorf("either 'template'/'templateRef' or 'leaderWorkerSet' field must be provided")
 		}
 		if role.LeaderWorkerSet.PatchLeaderTemplate == nil || role.LeaderWorkerSet.PatchWorkerTemplate == nil {
-			return fmt.Errorf("both 'patchLeaderTemplate' and 'patchWorkerTemplate' fields must be provided when 'template' field not set")
+			return fmt.Errorf("both 'patchLeaderTemplate' and 'patchWorkerTemplate' fields must be provided when 'template'/'templateRef' field not set")
 		}
 	}
 
