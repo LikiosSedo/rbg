@@ -217,7 +217,9 @@ func TestValidateRoleTemplateReferences(t *testing.T) {
 			errMsg:  "templatePatch: required when templateRef is set",
 		},
 		{
-			name: "templateRef with non-empty template (mutually exclusive)",
+			// Priority mode: when templateRef is set, it takes precedence and template is ignored
+			// This allows Go's zero-value PodTemplateSpec{} to coexist with templateRef
+			name: "templateRef with non-empty template (priority mode - template ignored)",
 			rbg: &RoleBasedGroup{
 				Spec: RoleBasedGroupSpec{
 					RoleTemplates: []RoleTemplate{
@@ -235,7 +237,7 @@ func TestValidateRoleTemplateReferences(t *testing.T) {
 							Name:        "prefill",
 							Replicas:    ptr.To(int32(1)),
 							TemplateRef: &TemplateRef{Name: "base"},
-							Template: &corev1.PodTemplateSpec{ // Should not be set
+							Template: &corev1.PodTemplateSpec{ // Ignored when templateRef is set
 								Spec: corev1.PodSpec{
 									Containers: []corev1.Container{{Name: "app"}},
 								},
@@ -245,8 +247,7 @@ func TestValidateRoleTemplateReferences(t *testing.T) {
 					},
 				},
 			},
-			wantErr: true,
-			errMsg:  "must be empty when templateRef is set",
+			wantErr: false,
 		},
 		{
 			name: "templatePatch without templateRef",
