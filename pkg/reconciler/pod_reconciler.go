@@ -352,7 +352,7 @@ func mapsEqual(map1, map2 map[string]string) bool {
 // If the patch is nil or empty, returns the base template unchanged.
 // This function is used by both RoleTemplates (KEP-8) and LeaderWorkerSet patches.
 func applyStrategicMergePatch(base corev1.PodTemplateSpec, patch runtime.RawExtension) (corev1.PodTemplateSpec, error) {
-	if patch.Raw == nil || len(patch.Raw) == 0 {
+	if len(patch.Raw) == 0 {
 		return base, nil
 	}
 

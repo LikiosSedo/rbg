@@ -59,7 +59,7 @@ func validateRoleTemplateFields(
 ) error {
 	hasTemplateRef := role.TemplateRef != nil
 	hasTemplate := role.Template != nil
-	hasTemplatePatch := role.TemplatePatch.Raw != nil && len(role.TemplatePatch.Raw) > 0
+	hasTemplatePatch := len(role.TemplatePatch.Raw) > 0
 
 	// Strict mutual exclusivity: templateRef and template cannot both be set
 	if hasTemplateRef && hasTemplate {
