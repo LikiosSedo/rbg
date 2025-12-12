@@ -2,37 +2,44 @@ package v1alpha1
 
 import (
 	"fmt"
+
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 // ValidateRoleTemplates validates roleTemplates array for uniqueness and completeness.
 func ValidateRoleTemplates(rbg *RoleBasedGroup) error {
 	templateNames := make(map[string]bool)
+	var allErrs []error
 
 	for i, rt := range rbg.Spec.RoleTemplates {
+		// Validate DNS label format first
+		if errs := validation.IsDNS1123Label(rt.Name); len(errs) > 0 {
+			allErrs = append(allErrs, fmt.Errorf(
+				"spec.roleTemplates[%d].name: %q is not a valid DNS label: %s",
+				i, rt.Name, errs[0],
+			))
+		}
+
+		// Check for duplicate names
 		if templateNames[rt.Name] {
-			return fmt.Errorf(
+			allErrs = append(allErrs, fmt.Errorf(
 				"spec.roleTemplates[%d]: duplicate template name %q",
 				i, rt.Name,
-			)
+			))
 		}
 		templateNames[rt.Name] = true
 
+		// Validate template has at least one container
 		if len(rt.Template.Spec.Containers) == 0 {
-			return fmt.Errorf(
+			allErrs = append(allErrs, fmt.Errorf(
 				"spec.roleTemplates[%d].template.spec.containers: must have at least one container",
 				i,
-			)
-		}
-
-		if !isDNSLabel(rt.Name) {
-			return fmt.Errorf(
-				"spec.roleTemplates[%d].name: %q is not a valid DNS label (must be lowercase alphanumeric, may contain hyphens, cannot start or end with hyphen)",
-				i, rt.Name,
-			)
+			))
 		}
 	}
 
-	return nil
+	return utilerrors.NewAggregate(allErrs)
 }
 
 // ValidateRoleTemplateReferences validates template references in roles.
@@ -42,13 +49,14 @@ func ValidateRoleTemplateReferences(rbg *RoleBasedGroup) error {
 		templateNames[rt.Name] = true
 	}
 
-	for i, role := range rbg.Spec.Roles {
-		if err := validateRoleTemplateFields(i, &role, templateNames); err != nil {
-			return err
+	var allErrs []error
+	for i := range rbg.Spec.Roles {
+		if err := validateRoleTemplateFields(i, &rbg.Spec.Roles[i], templateNames); err != nil {
+			allErrs = append(allErrs, err)
 		}
 	}
 
-	return nil
+	return utilerrors.NewAggregate(allErrs)
 }
 
 // validateRoleTemplateFields validates template field mutual exclusivity.
@@ -104,25 +112,3 @@ func validateRoleTemplateFields(
 	return nil
 }
 
-// isDNSLabel validates if string is a valid DNS label (RFC 1123).
-func isDNSLabel(s string) bool {
-	if len(s) == 0 || len(s) > 63 {
-		return false
-	}
-
-	for i, c := range s {
-		if !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-') {
-			return false
-		}
-
-		if i == 0 && c == '-' {
-			return false
-		}
-
-		if i == len(s)-1 && c == '-' {
-			return false
-		}
-	}
-
-	return true
-}

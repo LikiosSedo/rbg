@@ -116,6 +116,9 @@ func (roleWrapper *RoleWrapper) WithScalingAdapter(enable bool) *RoleWrapper {
 	return roleWrapper
 }
 
+// WithTemplateRef sets the role to use a template reference by name.
+// This method automatically clears the Template field to satisfy mutual exclusivity requirements
+// (templateRef and template cannot both be set).
 func (roleWrapper *RoleWrapper) WithTemplateRef(name string) *RoleWrapper {
 	roleWrapper.TemplateRef = &workloadsv1alpha.TemplateRef{
 		Name: name,
