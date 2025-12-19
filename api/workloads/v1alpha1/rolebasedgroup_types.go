@@ -254,7 +254,8 @@ type RollingUpdate struct {
 
 // RoleSpec defines the specification for a role in the group
 // +kubebuilder:validation:XValidation:rule="!has(self.templateRef) || !has(self.workload) || self.workload.kind != 'InstanceSet'",message="templateRef is not supported for InstanceSet workloads"
-// +kubebuilder:validation:XValidation:rule="!has(self.templatePatch) || has(self.templateRef)",message="templatePatch is only valid when templateRef is set"
+// Note: "templatePatch is only valid when templateRef is set" validation is done in controller
+// because templatePatch is runtime.RawExtension (x-kubernetes-preserve-unknown-fields) which CEL cannot inspect
 type RoleSpec struct {
 	// Unique identifier for the role
 	// +kubebuilder:validation:Required

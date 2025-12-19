@@ -7585,8 +7585,10 @@ spec:
                     x-kubernetes-list-type: map
                   roles:
                     items:
-                      description: RoleSpec defines the specification for a role in
-                        the group
+                      description: |-
+                        RoleSpec defines the specification for a role in the group
+                        Note: "templatePatch is only valid when templateRef is set" validation is done in controller
+                        because templatePatch is runtime.
                       properties:
                         annotations:
                           additionalProperties:
@@ -16670,8 +16672,6 @@ spec:
                       - message: templateRef is not supported for InstanceSet workloads
                         rule: '!has(self.templateRef) || !has(self.workload) || self.workload.kind
                           != ''InstanceSet'''
-                      - message: templatePatch is only valid when templateRef is set
-                        rule: '!has(self.templatePatch) || has(self.templateRef)'
                       - message: template and templateRef are mutually exclusive
                         rule: '!(has(self.template) && has(self.templateRef))'
                     minItems: 1
