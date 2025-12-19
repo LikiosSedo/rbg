@@ -79,6 +79,13 @@ func validateRoleTemplateFields(
 
 	if hasTemplateRef {
 		// TemplateRef mode: use referenced template with patch
+		if role.Workload.Kind == "InstanceSet" {
+			return fmt.Errorf(
+				"spec.roles[%d].templateRef: not supported for InstanceSet workloads",
+				index,
+			)
+		}
+
 		if !validTemplateNames[role.TemplateSource.TemplateRef.Name] {
 			return fmt.Errorf(
 				"spec.roles[%d].templateRef.name: template %q not found in spec.roleTemplates",
@@ -111,4 +118,3 @@ func validateRoleTemplateFields(
 
 	return nil
 }
-

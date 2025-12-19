@@ -138,9 +138,11 @@ func TestValidateRoleTemplateReferences(t *testing.T) {
 					RoleTemplates: baseTemplate,
 					Roles: []RoleSpec{
 						{
-							Name:          "prefill",
-							Replicas:      ptr.To(int32(1)),
-							TemplateRef:   &TemplateRef{Name: "base"},
+							Name:     "prefill",
+							Replicas: ptr.To(int32(1)),
+							TemplateSource: TemplateSource{
+								TemplateRef: &TemplateRef{Name: "base"},
+							},
 							TemplatePatch: runtime.RawExtension{Raw: []byte(`{}`)},
 						},
 					},
@@ -154,9 +156,11 @@ func TestValidateRoleTemplateReferences(t *testing.T) {
 				Spec: RoleBasedGroupSpec{
 					Roles: []RoleSpec{
 						{
-							Name:          "prefill",
-							Replicas:      ptr.To(int32(1)),
-							TemplateRef:   &TemplateRef{Name: "nonexistent"},
+							Name:     "prefill",
+							Replicas: ptr.To(int32(1)),
+							TemplateSource: TemplateSource{
+								TemplateRef: &TemplateRef{Name: "nonexistent"},
+							},
 							TemplatePatch: runtime.RawExtension{Raw: []byte(`{}`)},
 						},
 					},
@@ -172,9 +176,11 @@ func TestValidateRoleTemplateReferences(t *testing.T) {
 					RoleTemplates: baseTemplate,
 					Roles: []RoleSpec{
 						{
-							Name:        "prefill",
-							Replicas:    ptr.To(int32(1)),
-							TemplateRef: &TemplateRef{Name: "base"},
+							Name:     "prefill",
+							Replicas: ptr.To(int32(1)),
+							TemplateSource: TemplateSource{
+								TemplateRef: &TemplateRef{Name: "base"},
+							},
 						},
 					},
 				},
@@ -183,18 +189,44 @@ func TestValidateRoleTemplateReferences(t *testing.T) {
 			errMsg:  "templatePatch: required when templateRef is set",
 		},
 		{
+			name: "templateRef not supported for InstanceSet",
+			rbg: &RoleBasedGroup{
+				Spec: RoleBasedGroupSpec{
+					RoleTemplates: baseTemplate,
+					Roles: []RoleSpec{
+						{
+							Name:     "prefill",
+							Replicas: ptr.To(int32(1)),
+							Workload: WorkloadSpec{
+								APIVersion: "workloads.x-k8s.io/v1alpha1",
+								Kind:       "InstanceSet",
+							},
+							TemplateSource: TemplateSource{
+								TemplateRef: &TemplateRef{Name: "base"},
+							},
+							TemplatePatch: runtime.RawExtension{Raw: []byte(`{}`)},
+						},
+					},
+				},
+			},
+			wantErr: true,
+			errMsg:  "not supported for InstanceSet",
+		},
+		{
 			name: "mutual exclusivity: templateRef and template both set",
 			rbg: &RoleBasedGroup{
 				Spec: RoleBasedGroupSpec{
 					RoleTemplates: baseTemplate,
 					Roles: []RoleSpec{
 						{
-							Name:        "prefill",
-							Replicas:    ptr.To(int32(1)),
-							TemplateRef: &TemplateRef{Name: "base"},
-							Template: &corev1.PodTemplateSpec{
-								Spec: corev1.PodSpec{
-									Containers: []corev1.Container{{Name: "app"}},
+							Name:     "prefill",
+							Replicas: ptr.To(int32(1)),
+							TemplateSource: TemplateSource{
+								TemplateRef: &TemplateRef{Name: "base"},
+								Template: &corev1.PodTemplateSpec{
+									Spec: corev1.PodSpec{
+										Containers: []corev1.Container{{Name: "app"}},
+									},
 								},
 							},
 							TemplatePatch: runtime.RawExtension{Raw: []byte(`{}`)},
@@ -213,9 +245,11 @@ func TestValidateRoleTemplateReferences(t *testing.T) {
 						{
 							Name:     "prefill",
 							Replicas: ptr.To(int32(1)),
-							Template: &corev1.PodTemplateSpec{
-								Spec: corev1.PodSpec{
-									Containers: []corev1.Container{{Name: "app"}},
+							TemplateSource: TemplateSource{
+								Template: &corev1.PodTemplateSpec{
+									Spec: corev1.PodSpec{
+										Containers: []corev1.Container{{Name: "app"}},
+									},
 								},
 							},
 							TemplatePatch: runtime.RawExtension{Raw: []byte(`{}`)},
@@ -234,9 +268,11 @@ func TestValidateRoleTemplateReferences(t *testing.T) {
 						{
 							Name:     "prefill",
 							Replicas: ptr.To(int32(1)),
-							Template: &corev1.PodTemplateSpec{
-								Spec: corev1.PodSpec{
-									Containers: []corev1.Container{{Name: "app"}},
+							TemplateSource: TemplateSource{
+								Template: &corev1.PodTemplateSpec{
+									Spec: corev1.PodSpec{
+										Containers: []corev1.Container{{Name: "app"}},
+									},
 								},
 							},
 						},
@@ -260,4 +296,3 @@ func TestValidateRoleTemplateReferences(t *testing.T) {
 		})
 	}
 }
-

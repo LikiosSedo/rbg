@@ -51,6 +51,7 @@ type TemplateRef struct {
 
 // TemplateSource defines either an inline template or a reference to a RoleTemplate.
 // Only one of its members may be specified.
+// +kubebuilder:validation:XValidation:rule="!(has(self.template) && has(self.templateRef))",message="template and templateRef are mutually exclusive"
 type TemplateSource struct {
 	// Template defines the Pod template specification inline.
 	// Required when templateRef is not set.
@@ -252,6 +253,8 @@ type RollingUpdate struct {
 }
 
 // RoleSpec defines the specification for a role in the group
+// +kubebuilder:validation:XValidation:rule="!has(self.templateRef) || !has(self.workload) || self.workload.kind != 'InstanceSet'",message="templateRef is not supported for InstanceSet workloads"
+// +kubebuilder:validation:XValidation:rule="!has(self.templatePatch) || has(self.templateRef)",message="templatePatch is only valid when templateRef is set"
 type RoleSpec struct {
 	// Unique identifier for the role
 	// +kubebuilder:validation:Required
