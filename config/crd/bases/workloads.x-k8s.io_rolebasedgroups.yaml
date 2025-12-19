@@ -9054,7 +9054,7 @@ spec:
                       type: array
                     template:
                       description: |-
-                        Pod template specification.
+                        Template defines the Pod template specification inline.
                         Required when templateRef is not set.
                       properties:
                         metadata:
@@ -16399,6 +16399,14 @@ spec:
                   - name
                   - replicas
                   type: object
+                  x-kubernetes-validations:
+                  - message: templateRef is not supported for InstanceSet workloads
+                    rule: '!has(self.templateRef) || !has(self.workload) || self.workload.kind
+                      != ''InstanceSet'''
+                  - message: templatePatch is only valid when templateRef is set
+                    rule: '!has(self.templatePatch) || has(self.templateRef)'
+                  - message: template and templateRef are mutually exclusive
+                    rule: '!(has(self.template) && has(self.templateRef))'
                 minItems: 1
                 type: array
                 x-kubernetes-list-map-keys:
