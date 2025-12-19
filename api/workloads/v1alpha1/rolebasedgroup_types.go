@@ -49,6 +49,21 @@ type TemplateRef struct {
 	Name string `json:"name"`
 }
 
+// TemplateSource defines either an inline template or a reference to a RoleTemplate.
+// Only one of its members may be specified.
+type TemplateSource struct {
+	// Template defines the Pod template specification inline.
+	// Required when templateRef is not set.
+	// +optional
+	Template *corev1.PodTemplateSpec `json:"template,omitempty"`
+
+	// TemplateRef references a RoleTemplate from spec.roleTemplates.
+	// When set, the Pod template is derived by merging the referenced template with templatePatch.
+	// Cannot be used together with template field.
+	// +optional
+	TemplateRef *TemplateRef `json:"templateRef,omitempty"`
+}
+
 // RoleBasedGroupSpec defines the desired state of RoleBasedGroup.
 type RoleBasedGroupSpec struct {
 	// +kubebuilder:pruning:PreserveUnknownFields
@@ -281,11 +296,9 @@ type RoleSpec struct {
 	// +optional
 	Workload WorkloadSpec `json:"workload,omitempty"`
 
-	// TemplateRef references a RoleTemplate from spec.roleTemplates.
-	// When set, the Pod template is derived by merging the referenced template with templatePatch.
-	// Cannot be used together with template field.
+	// TemplateSource defines the Pod template source, either inline or via reference.
 	// +optional
-	TemplateRef *TemplateRef `json:"templateRef,omitempty"`
+	TemplateSource `json:",inline"`
 
 	// TemplatePatch specifies modifications to apply to the referenced template.
 	// Uses strategic merge patch semantics.
@@ -294,11 +307,6 @@ type RoleSpec struct {
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:validation:Schemaless
 	TemplatePatch runtime.RawExtension `json:"templatePatch,omitempty"`
-
-	// Pod template specification.
-	// Required when templateRef is not set.
-	// +optional
-	Template *corev1.PodTemplateSpec `json:"template,omitempty"`
 
 	// LeaderWorkerSet template
 	// +optional

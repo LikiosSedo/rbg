@@ -65,8 +65,8 @@ func validateRoleTemplateFields(
 	role *RoleSpec,
 	validTemplateNames map[string]bool,
 ) error {
-	hasTemplateRef := role.TemplateRef != nil
-	hasTemplate := role.Template != nil
+	hasTemplateRef := role.TemplateSource.TemplateRef != nil
+	hasTemplate := role.TemplateSource.Template != nil
 	hasTemplatePatch := len(role.TemplatePatch.Raw) > 0
 
 	// Strict mutual exclusivity: templateRef and template cannot both be set
@@ -79,10 +79,10 @@ func validateRoleTemplateFields(
 
 	if hasTemplateRef {
 		// TemplateRef mode: use referenced template with patch
-		if !validTemplateNames[role.TemplateRef.Name] {
+		if !validTemplateNames[role.TemplateSource.TemplateRef.Name] {
 			return fmt.Errorf(
 				"spec.roles[%d].templateRef.name: template %q not found in spec.roleTemplates",
-				index, role.TemplateRef.Name,
+				index, role.TemplateSource.TemplateRef.Name,
 			)
 		}
 

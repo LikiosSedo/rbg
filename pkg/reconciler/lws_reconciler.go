@@ -45,7 +45,7 @@ func (r *LeaderWorkerSetReconciler) Validate(
 	logger := log.FromContext(ctx)
 	logger.V(1).Info("start to validate role declaration")
 	// KEP-8: 支持 templateRef 模式
-	hasTemplate := role.Template != nil || role.UsesRoleTemplate()
+	hasTemplate := role.TemplateSource.Template != nil || role.UsesRoleTemplate()
 
 	if !hasTemplate {
 		if role.LeaderWorkerSet == nil {
@@ -231,9 +231,9 @@ func (r *LeaderWorkerSetReconciler) constructLWSApplyConfiguration(
 			return nil, fmt.Errorf("failed to apply templatePatch: %w", err)
 		}
 		baseTemplate = merged
-	} else if role.Template != nil {
+	} else if role.TemplateSource.Template != nil {
 		// Traditional mode: role.Template is a pointer, dereference it
-		baseTemplate = *role.Template
+		baseTemplate = *role.TemplateSource.Template
 	}
 
 	// Adapt to v0.5.0 pointer type: dereference *runtime.RawExtension
