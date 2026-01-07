@@ -412,9 +412,9 @@ kubectl get lws lws-demo-inference -o yaml | grep -A5 workerTemplate
 | create rbg with roleTemplates | 基本功能：templateRef + templatePatch 合并 | 已覆盖 |
 | empty templatePatch | 空 patch 使用 base template 原样 | 已覆盖 |
 | update roleTemplate triggers rollout | 修改 roleTemplate 触发全局更新 + ControllerRevision 递增 | 已覆盖 |
-| mixed mode | templateRef 和传统 template 共存 | 已覆盖 |
+| mixed mode | 同一 RBG 中 templateRef 和传统 template 共存，验证向后兼容（可逐步迁移） | 已覆盖 |
 | LWS two-layer patch | LWS 三层合并（roleTemplate -> templatePatch -> leader/workerPatch） | 已覆盖 |
-| rollback roleTemplate | 回滚到之前版本，workload spec 恢复 | 已覆盖 |
+| rollback roleTemplate | V1(100m) -> V2(200m) -> V1(100m)，验证 spec 恢复且 revision 递增 | 已覆盖 |
 
 
 ## 八、API 设计演进
@@ -480,16 +480,7 @@ type RoleSpec struct {
 
 **关键点**：`json:",inline"` 使得 Go 结构体的层级（`RoleSpec -> TemplateSource -> Template`）在 YAML 中被展平为 `role.template`，用户无感知内部实现变化。
 
-### 8.4 校验分层
-
-| 校验规则 | 校验位置 | 原因 |
-|---------|---------|------|
-| `template` 和 `templateRef` 互斥 | CRD XValidation（TemplateSource） | CEL 可检查标准字段 |
-| 非 InstanceSet 必须设置其一 | CRD XValidation（RoleSpec） | CEL 可检查 workload.kind |
-| InstanceSet 不支持 templateRef | CRD XValidation（RoleSpec） | CEL 可检查 workload.kind |
-| templatePatch 仅在 templateRef 时有效 | Controller 层校验 | `templatePatch` 是 `runtime.RawExtension`（`x-kubernetes-preserve-unknown-fields`），CEL 无法检查 |
-
-### 8.5 XValidation 规则
+### 8.4 XValidation 规则
 
 ```go
 // TemplateSource 层
