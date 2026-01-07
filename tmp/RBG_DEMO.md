@@ -249,21 +249,7 @@ kubectl exec roletemplate-demo-decode-0 -- env | grep MAX_TOKENS
 
 ---
 
-## 五、核心能力总结
-
-| 能力 | 说明 | 状态 |
-|------|------|------|
-| roleTemplate 定义共享配置 | image、volumes、resources 等定义一次 | 已验证 |
-| templateRef 引用模板 | role 通过 name 引用 roleTemplate | 已验证 |
-| templatePatch 覆盖差异 | Strategic Merge Patch 语义合并 | 已验证 |
-| 修改 roleTemplate 触发全局 rollout | 改一处，所有引用 role 更新 | 已验证 |
-| 修改 templatePatch 触发单 role 更新 | 差异化更新，不影响其他 role | 已验证 |
-| ControllerRevision 支持回滚 | roleTemplate 变更记录在 revision | 支持 |
-| CRD 层 XValidation | template/templateRef 互斥校验 | 支持 |
-
----
-
-## 六、Strategic Merge Patch 合并行为
+## 五、Strategic Merge Patch 合并行为
 
 
 | 字段 | 合并策略 | 示例 |
@@ -277,11 +263,11 @@ kubectl exec roletemplate-demo-decode-0 -- env | grep MAX_TOKENS
 
 ---
 
-## 七、LWS 三层合并示例
+## 六、LWS 三层合并示例
 
 使用 LeaderWorkerSet的场景：
 
-### 7.1 三层合并概念
+### 6.1 三层合并概念
 
 ```
 roleTemplate.template       (第一层：共享基础配置)
@@ -292,7 +278,7 @@ patchLeaderTemplate         (第三层：leader 专属配置)
 patchWorkerTemplate         (第三层：worker 专属配置)
 ```
 
-### 7.2 示例 YAML
+### 6.2 示例 YAML
 
 ```yaml
 apiVersion: workloads.x-k8s.io/v1alpha1
@@ -347,7 +333,7 @@ spec:
                 command: ["--role", "worker"]
 ```
 
-### 7.3 合并结果
+### 6.3 合并结果
 
 **Leader Pod：**
 | 字段 | 值 | 来源 |
@@ -367,7 +353,7 @@ spec:
 | command | --role worker | patchWorkerTemplate |
 | label: node-type | worker | patchWorkerTemplate |
 
-### 7.4 修改 templatePatch（第二层）
+### 6.4 修改 templatePatch（第二层）
 
 **操作**：修改 `templatePatch` 中的 memory: 256Mi -> 512Mi
 
@@ -385,7 +371,7 @@ lws-demo-inference-0    2/2     Running       3s
 lws-demo-inference-1    2/2     Running       3s
 ```
 
-### 7.5 修改 patchLeaderTemplate（第三层）
+### 6.5 修改 patchLeaderTemplate（第三层）
 
 **操作**：修改 `patchLeaderTemplate` 中的 command: --port 8000 -> --port 9000
 
@@ -404,7 +390,7 @@ kubectl get lws lws-demo-inference -o yaml | grep -A5 workerTemplate
 # command: ["--role", "worker"]
 ```
 
-### 7.6 三层修改影响对照
+### 6.6 三层修改影响对照
 
 | 修改层级 | 修改内容 | Leader 影响 | Worker 影响 |
 |---------|---------|------------|------------|
@@ -413,13 +399,13 @@ kubectl get lws lws-demo-inference -o yaml | grep -A5 workerTemplate
 | patchLeaderTemplate | port: 8000 -> 9000 | 更新 | 不变（但 Pod 会重建） |
 | patchWorkerTemplate | 新增 env: WORKER=true | 不变（但 Pod 会重建） | 更新 |
 
-> 注：LWS 的滚动更新是按 group 整体进行的，即使只改 leader/worker 其中一方，整个 group 都会重建。
+> LWS 的滚动更新是按 group 整体进行的，即使只改 leader/worker 其中一方，整个 group 都会重建。
 
 ---
 
-## 八、E2E 测试覆盖情况
+## 七、E2E 测试覆盖情况
 
-### 8.1 已覆盖场景
+### 7.1 已覆盖场景
 
 | 测试用例 | 说明 | 状态 |
 |---------|------|------|
@@ -430,18 +416,93 @@ kubectl get lws lws-demo-inference -o yaml | grep -A5 workerTemplate
 | LWS two-layer patch | LWS 三层合并（roleTemplate -> templatePatch -> leader/workerPatch） | 已覆盖 |
 | rollback roleTemplate | 回滚到之前版本，workload spec 恢复 | 已覆盖 |
 
-### 8.2 单元测试覆盖
 
-| 测试用例 | 说明 |
-|---------|------|
-| TestValidateRoleTemplates | template name 唯一性、DNS label 格式、containers 非空 |
-| TestValidateRoleTemplateReferences | template/templateRef 互斥、missing template、InstanceSet 阻止 templateRef |
-| TestApplyStrategicMergePatch | nil/empty patch、container 覆盖、label 合并 |
-| TestRoleBasedGroup_FindRoleTemplate | template 查找 |
+## 八、API 设计演进
 
+### 8.1 KEP-8 原始设计
+
+KEP-8 原始设计文档中，`template` 和 `templateRef` 作为 `RoleSpec` 的直接字段：
+
+```go
+// 原始设计（概念）
+type RoleSpec struct {
+    Name        string
+    Replicas    *int32
+    Template    *corev1.PodTemplateSpec  // 直接字段
+    TemplateRef *TemplateRef             // 直接字段
+    TemplatePatch runtime.RawExtension
+    // ...
+}
+```
+对应 YAML：
+```yaml
+roles:
+- name: prefill
+  template:           # 直接在 role 下
+    spec: {...}
+# 或
+- name: decode
+  templateRef:        # 直接在 role 下
+    name: base
+  templatePatch:
+    spec: {...}
+```
+
+### 8.2 后续实现：TemplateSource 联合类型 + inline
+
+实际实现引入了 `TemplateSource` 联合类型，然后通过 `json:",inline"` 内联到 `RoleSpec`：
+
+```go
+// TemplateSource 定义联合类型
+// +kubebuilder:validation:XValidation:rule="!(has(self.template) && has(self.templateRef))",message="template and templateRef are mutually exclusive"
+type TemplateSource struct {
+    Template    *corev1.PodTemplateSpec `json:"template,omitempty"`
+    TemplateRef *TemplateRef            `json:"templateRef,omitempty"`
+}
+
+type RoleSpec struct {
+    Name        string
+    Replicas    *int32
+    // 通过 inline 内联 TemplateSource
+    TemplateSource `json:",inline"`
+    TemplatePatch  runtime.RawExtension `json:"templatePatch,omitempty"`
+    // ...
+}
+```
+
+### 8.3 为什么要这样改
+
+| 原始设计问题 | inline 方案解决 |
+|-------------|----------------|
+| `template` 和 `templateRef` 互斥校验难以在 CRD 层实现 | `TemplateSource` 联合类型可定义 XValidation |
+| 如果用嵌套结构会改变 YAML 格式 | `json:",inline"` 保持 YAML 结构不变 |
+| 直接字段无法复用校验逻辑 | 联合类型封装校验，可复用于其他资源 |
+
+**关键点**：`json:",inline"` 使得 Go 结构体的层级（`RoleSpec -> TemplateSource -> Template`）在 YAML 中被展平为 `role.template`，用户无感知内部实现变化。
+
+### 8.4 校验分层
+
+| 校验规则 | 校验位置 | 原因 |
+|---------|---------|------|
+| `template` 和 `templateRef` 互斥 | CRD XValidation（TemplateSource） | CEL 可检查标准字段 |
+| 非 InstanceSet 必须设置其一 | CRD XValidation（RoleSpec） | CEL 可检查 workload.kind |
+| InstanceSet 不支持 templateRef | CRD XValidation（RoleSpec） | CEL 可检查 workload.kind |
+| templatePatch 仅在 templateRef 时有效 | Controller 层校验 | `templatePatch` 是 `runtime.RawExtension`（`x-kubernetes-preserve-unknown-fields`），CEL 无法检查 |
+
+### 8.5 XValidation 规则
+
+```go
+// TemplateSource 层
+// +kubebuilder:validation:XValidation:rule="!(has(self.template) && has(self.templateRef))",message="template and templateRef are mutually exclusive"
+
+// RoleSpec 层
+// +kubebuilder:validation:XValidation:rule="!has(self.templateRef) || !has(self.workload) || self.workload.kind != 'InstanceSet'",message="templateRef is not supported for InstanceSet workloads"
+
+// +kubebuilder:validation:XValidation:rule="(has(self.template) != has(self.templateRef)) || (has(self.workload) && self.workload.kind == 'InstanceSet')",message="template or templateRef must be set for non-InstanceSet workloads"
+```
 ---
 
-## 九、关键设计点
+## 九、关键设计点总结
 
 1. **向后兼容**：使用 `json:",inline"` 保持 YAML 结构不变，`role.template` 仍可直接使用
 
