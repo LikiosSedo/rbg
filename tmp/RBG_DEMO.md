@@ -472,13 +472,18 @@ type RoleSpec struct {
 
 ### 8.3 为什么要这样改
 
-| 原始设计问题 | inline 方案解决 |
-|-------------|----------------|
-| `template` 和 `templateRef` 互斥校验难以在 CRD 层实现 | `TemplateSource` 联合类型可定义 XValidation |
-| 如果用嵌套结构会改变 YAML 格式 | `json:",inline"` 保持 YAML 结构不变 |
-| 直接字段无法复用校验逻辑 | 联合类型封装校验，可复用于其他资源 |
+**Review 建议的核心点**：参考 K8s `VolumeSource` 联合类型模式，同时保持向后兼容。
 
-**关键点**：`json:",inline"` 使得 Go 结构体的层级（`RoleSpec -> TemplateSource -> Template`）在 YAML 中被展平为 `role.template`，用户无感知内部实现变化。
+原始设计在 RoleSpec 上写 XValidation 也能实现互斥校验。但联合类型方案更符合 K8s API 设计惯例：
+
+| 对比 | 直接字段 | 联合类型 + inline |
+|-----|---------|------------------|
+| 校验位置 | RoleSpec 上 | TemplateSource 上 |
+| 复用性 | 校验规则无法复用 | 类型可复用到其他资源 |
+| 设计惯例 | - | 符合 K8s VolumeSource、PodGroupPolicySource 模式 |
+| YAML 格式 | `role.template` | `role.template`（inline 展平，不变） |
+
+**关键点**：`json:",inline"` 使得 Go 结构体层级（`RoleSpec -> TemplateSource -> Template`）在 YAML 中展平为 `role.template`，用户无感知。
 
 ### 8.4 XValidation 规则
 
