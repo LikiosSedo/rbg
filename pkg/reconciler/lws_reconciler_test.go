@@ -447,6 +447,49 @@ func TestLeaderWorkerSetReconciler_RecreateWorkload(t *testing.T) {
 	}
 }
 
+// TestLwsSpecEqual_RolloutStrategyDiff tests that lwsSpecEqual detects RolloutStrategy
+// differences, which is necessary for triggering reconciliation on partition changes (PR #151 fix)
+func TestLwsSpecEqual_RolloutStrategyDiff(t *testing.T) {
+	baseSpec := func() lwsv1.LeaderWorkerSetSpec {
+		return lwsv1.LeaderWorkerSetSpec{
+			Replicas: ptr.To(int32(3)),
+			LeaderWorkerTemplate: lwsv1.LeaderWorkerTemplate{
+				Size: ptr.To(int32(2)),
+				LeaderTemplate: &corev1.PodTemplateSpec{
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{{Name: "test", Image: "nginx"}},
+					},
+				},
+				WorkerTemplate: corev1.PodTemplateSpec{
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{{Name: "test", Image: "nginx"}},
+					},
+				},
+			},
+		}
+	}
+
+	// Test: different partition values should be detected as not equal
+	spec1 := baseSpec()
+	spec1.RolloutStrategy = lwsv1.RolloutStrategy{
+		Type: lwsv1.RollingUpdateStrategyType,
+		RollingUpdateConfiguration: &lwsv1.RollingUpdateConfiguration{
+			Partition: ptr.To(int32(5)),
+		},
+	}
+
+	spec2 := baseSpec()
+	spec2.RolloutStrategy = lwsv1.RolloutStrategy{
+		Type: lwsv1.RollingUpdateStrategyType,
+		RollingUpdateConfiguration: &lwsv1.RollingUpdateConfiguration{
+			Partition: ptr.To(int32(8)),
+		},
+	}
+
+	equal, _ := lwsSpecEqual(spec1, spec2)
+	assert.False(t, equal, "lwsSpecEqual should detect partition difference")
+}
+
 func TestConstructLWSApplyConfiguration_LabelsAndAnnotations(t *testing.T) {
 	role := &workloadsv1alpha1.RoleSpec{
 		Name:     "test-role",
